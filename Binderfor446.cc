@@ -1,0 +1,256 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <iostream>
+#include "Binderforcs446.h"
+using namespace std;
+
+static vector<client_info*> server_info;
+static map<int, client_info*> unspec_request; 
+static map<room_location, client_info*> REPO;
+
+/* The first time we receive a message from a server */
+void log_server(int fd) {
+    map<inr, client_info*>::iterator it = unspec_request.find(fd);
+    if (it == unspec_request.end()) {
+        cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
+    }
+    client_info* temp = it->second;
+    unspec_request.erase(fd);
+    server_info.push_back(temp);
+}
+
+/* Allocate a server to the client */
+int forward_request(int fd) {
+
+    /* Get the room information */
+    char room_num[256];
+    int nbytes = recv(i, room_num, 256 ,0);
+    if (nbytes <= 0) {
+        return 1;
+    }
+    int building = 0;
+    nbytes = recv(i, &building, sizeof(int), 0);
+    if (nbytes <=0) {
+        return 1;
+    }
+    room_location temp(room_num);
+    temp.building = building;
+
+    /* Allocation of a server */
+    map<room_location, host_info*>::iterator it = REPO.find(room_location);
+    if (it == REPO.end()) {
+        cerr << "CANNOT find a server for the request room" << endl;
+        return 1;
+    }
+    client_info* server = it->second;
+    send(fd, server->hostname.c_str(), server->hostname.length()+1, 0);
+    send(fd, &(server->port), sizeof(unsigned short), 0);
+    return 0;
+}
+
+/* Receive a command from a server */
+int handle_msg() {
+    
+}
+
+/* Store connection information */
+void connection_info(struct sockaddr_in &client, int fd) {
+    char* IP = inet_ntoa(client.sin_addr);
+    client_info* temp = new client_info(IP);
+    temp->port = ntohs(client.sin_port);
+
+    // temp->fd = fd;
+    temp->num_room = 0;
+
+    cout << "TEST: We are get the info of connection" << endl;
+    cout << "IP is " << temp->host_name << " Port number is " << temp->port << endl;
+    map<int, client_info*>::iterator it = unspec_request.find(fd);
+    if (it == unspec_request.end()) {
+        cerr << "FATAL ERROR: file handler duplicated" << endl;
+    }
+    else {
+        unspec_request[fd] = temp;
+    }
+}
+
+int main(void)
+{
+    /* we are listening on welcome_fd*/
+    int sockfd;
+
+    /* new connection is on new_fd */
+    int new_fd;
+
+    int yes=1;
+    
+    char s[INET6_ADDRSTRLEN];
+    
+    /* Internet address information is stored here, defined in <netinet/in.h> */
+    struct sockaddr_in Server_addr;
+
+    /* create a new socket
+     * AF_INET is for the domain address, we choose Internet rather than Unix domain
+     * SOCK_STREAM is for the type of socket
+     * 0 is for the protocal, we let the system to choose the most appropriate one
+     */
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        cerr << "Binder Socket: Creation failed" << endl;
+        return -1;
+    }
+    
+    /* Initialize the address information */
+    Server_addr.sin_family = AF_INET;   // Internet address domain
+    Server_addr.sin_port = htons(0);    // Dynamically binding a port, it is necessary to convert this to network byte order
+    Server_addr.sin_addr.s_addr = INADDR_ANY;   // IP address of the host
+    
+    // memset(Server_addr.sin_zero, '\0', sizeof Server_addr);
+    
+    /* Bind the socket to an address */
+    if (bind(sockfd, (struct sockaddr *) &Server_addr, sizeof (struct sockaddr_in)) < 0) {
+        cerr << "Binder Socket: Binding failed" << endl;
+        return -1;
+    }
+    
+    // rtn = getsockname(sockfd, (struct sockaddr*) &Server_addr, &ServerAddrSize);
+    // if(rtn == -1){
+    //     std::cout<<"getsockname failed: " << strerror(errno) <<std::endl;
+    //     return BINDER_GET_SOCKFD_FAIL;
+    // }
+    
+    /* Listen on the socket with the maximum number of pending requests of 20 */
+    if (listen(sockfd, 20) == -1) {
+        std::cout<< "Binder Socket: Listening failed"<<std::endl;
+        return -1;
+    }
+    
+    /* Print out server information */
+    char hostname[256];
+    gethostname(hostname,256);
+    cerr<< "BINDER_ADDRESS " << hostname <<endl;
+    cerr<< "BINDER_PORT " << ntohs(Server_addr.sin_port) <<endl;
+    
+
+    /* The structure to store all the handles */
+    fd_set server_fds;
+    FD_ZERO(&server_fds);
+    FD_SET(sockfd,&server_fds);
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(sockfd,&fds);
+    int max_fd = sockfd;
+    int min_fd = sockfd;
+
+    /* Storing clients' information */
+    socklen_t sin_size;
+    struct sockaddr_in Client_addr;
+
+    /* Start to handling connections */
+    while(true) {
+
+        /* Deep copy it */
+        fd_set newfds = fds;
+
+        /* To see how many socket handles that are ready and contained in the fd_set 
+         * If there is no handle, just keep looping
+         */
+        if (select(max_fd+1, &newfds, NULL, NULL, NULL) < 0) {
+            continue;               // no handle has I/O request
+        }
+
+        /* Otherwise, go through handles to listen their request */
+        for (int i=min_fd; i <= max_fd; i++) {
+
+            /* If this is a relavent handler */
+            if (FD_ISSET(i,&newfds)) {
+
+                /* If this the welcome handler */
+                if (i == sockfd) {
+                    sin_size = sizeof(Client_addr);
+                    int newfd = accept(sockfd, (struct sockaddr*) &Client_addr, &sin_size);
+                    if (newfd == -1) {
+                        perror("accept");
+                        continue;
+                    }
+
+                    /* Add to unspecified list */
+                    connection_info(Client_addr, newfd);
+
+                    // inet_ntop(Client_addr.ss_family,
+                    //           get_in_addr((struct sockaddr *)&Client_addr),
+                    //           s, sizeof s);
+                    if (newfd > max_fd) {
+                        max_fd = newfd;
+                    }
+                    if (newfd < min_fd) {
+                        min_fd = newfd;
+                    }
+                    FD_SET(newfd,&fds);
+                }
+
+                /* Or this is a already connected socket */
+                else {
+
+                    /* Shake hand */
+                    unsigned int iden;
+                    int nbytes = recv(i,&iden,sizeof(unsigned int),0);
+
+                    /* Get nothing */
+                    if (nbytes == 0) {
+                        continue;
+                    }
+
+                    else if (nbytes < 0) {
+                        close(i);
+                        FD_CLR(i, &fds);
+                    }
+                    else {
+                        if (FD_ISSET(i, &server_fds)) {
+                                handle_msg();
+                        }
+                        else {
+                            /* If this is a server */
+                            if (iden == 0) {
+
+                                /* Add this handler to the server_fds */
+                                log_server(i);
+                                FD_SET(i,&server_fds);
+                            }
+
+                            /* If this is a client */
+                            else if (iden == 1) {
+
+                                /* Allocate the corresponding server to the client */
+                                if (forward_request(i)) {
+                                    cerr << "SOME ERROR when allocate a server" << endl;
+                                }
+                                close(i);
+                                FD_CLR(i, &fds);
+                            }
+
+                            /* Other type of messages */
+                            else {
+
+                                /* Someone might try to mimic servers and attack our server */
+                                else {
+                                    cerr << "Wrong type of message from clients" << endl;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }     
+    return 0;
+}
