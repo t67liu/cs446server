@@ -11,7 +11,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <iostream>
-#include "Binderforcs446.h"
+#include "Binderfor446.h"
 using namespace std;
 
 static vector<client_info*> server_info;
@@ -20,7 +20,7 @@ static map<room_location, client_info*> REPO;
 
 /* The first time we receive a message from a server */
 void log_server(int fd) {
-    map<inr, client_info*>::iterator it = unspec_request.find(fd);
+    map<int, client_info*>::iterator it = unspec_request.find(fd);
     if (it == unspec_request.end()) {
         cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
     }
@@ -34,26 +34,26 @@ int forward_request(int fd) {
 
     /* Get the room information */
     char room_num[256];
-    int nbytes = recv(i, room_num, 256 ,0);
+    int nbytes = recv(fd, room_num, 256 ,0);
     if (nbytes <= 0) {
         return 1;
     }
     int building = 0;
-    nbytes = recv(i, &building, sizeof(int), 0);
+    nbytes = recv(fd, &building, sizeof(int), 0);
     if (nbytes <=0) {
         return 1;
     }
     room_location temp(room_num);
-    temp.building = building;
+    temp.building = (Building) building;
 
     /* Allocation of a server */
-    map<room_location, host_info*>::iterator it = REPO.find(room_location);
+    map<room_location, client_info*>::iterator it = REPO.find(temp);
     if (it == REPO.end()) {
         cerr << "CANNOT find a server for the request room" << endl;
         return 1;
     }
     client_info* server = it->second;
-    send(fd, server->hostname.c_str(), server->hostname.length()+1, 0);
+    send(fd, server->host_name.c_str(), server->host_name.length()+1, 0);
     send(fd, &(server->port), sizeof(unsigned short), 0);
     return 0;
 }
@@ -242,9 +242,9 @@ int main(void)
                             else {
 
                                 /* Someone might try to mimic servers and attack our server */
-                                else {
-                                    cerr << "Wrong type of message from clients" << endl;
-                                }
+
+                                cerr << "Wrong type of message from clients" << endl;
+
                             }
                         }
                     }
