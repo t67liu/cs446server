@@ -1,11 +1,4 @@
-#define Binder_h
-#include <vector>
 #include <string>
-#include <map>
-#define maxclient 5
-#define INTSIZE 4
-#define mode 1 //1 is test and programming
-               //0 is submission version
 using namespace std;
 
 
