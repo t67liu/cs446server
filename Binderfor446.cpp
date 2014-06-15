@@ -1,4 +1,3 @@
-#include <iostream>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -10,6 +9,8 @@
 #include <vector>
 #include <map>
 #include "Binderfor446.h"
+#include <iostream>
+
 using namespace std;
 
 static vector<client_info*> server_info;
@@ -133,9 +134,7 @@ int main(void)
     }
     
     /* Print out server information */
-    char hostname[256];
-    gethostname(hostname,256);
-    cerr<< "BINDER_ADDRESS " << hostname <<endl;
+    //cerr<< "BINDER_ADDRESS " << hostname <<endl;
     cerr<< "BINDER_PORT " << ntohs(Server_addr.sin_port) <<endl;
     
 
@@ -177,7 +176,6 @@ int main(void)
                     sin_size = sizeof(Client_addr);
                     int newfd = accept(sockfd, (struct sockaddr*) &Client_addr, &sin_size);
                     if (newfd == -1) {
-                        perror("accept");
                         continue;
                     }
 
