@@ -1,32 +1,31 @@
-#define Binder_h
-#include <vector>
 #include <string>
-#include <map>
-#define maxclient 5
-#define INTSIZE 4
-#define mode 1 //1 is test and programming
-               //0 is submission version
 using namespace std;
 
 
 typedef enum {MC, OTHER} Building;
 
 typedef struct room_location {
+    int room_ID;
+    int charing_server_ID;
     string room_number;
     Building building;
-    room_location(char* room_num) {
+    unsigned int room_in_charge;
+    room_location(char* room_num, Building recv_building) {
     	string temp(room_num);
     	this->room_number = temp;
+        this->building = recv_building;
     }
 } room_location;
 
 typedef struct client_info {
+    int ID;
     string host_name;
     unsigned short port;
     unsigned int num_room;
     client_info(char* IP) {
     	string temp(IP);
     	this->host_name = temp;
+        ID = 0;
     }
 } client_info;
 

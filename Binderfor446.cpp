@@ -1,34 +1,51 @@
-#include <stdio.h>
+#include <iostream>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
-#include <sys/wait.h>
-#include <signal.h>
-#include <iostream>
+#include <vector>
+#include <map>
 #include "Binderfor446.h"
 using namespace std;
 
 static vector<client_info*> server_info;
-static map<int, client_info*> unspec_request; 
-static map<room_location, client_info*> REPO;
+static vector<room_location*> room_list;
+static map<int, client_info*> unspec_request;   // key is the file handler, value is the info
 
 /* The first time we receive a message from a server */
 void log_server(int fd) {
+    static int server_id = 1;
     map<int, client_info*>::iterator it = unspec_request.find(fd);
     if (it == unspec_request.end()) {
         cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
     }
     client_info* temp = it->second;
+    temp->ID = server_id;
+    server_id++;
     unspec_request.erase(fd);
     server_info.push_back(temp);
 }
 
+int search_room(string room_num, Building check_building) {
+    for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); it++) {
+        if ((*it)->building == check_building && !((*it)->room_number.compare(room_num))) return (*it)->charing_server_ID;
+    }
+    return 0;
+}
+
+client_info* search_server(int server_id) {
+    for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); it++) {
+        if ((*it)->ID == server_id)  {
+            client_info* temp = *it;
+            return temp;
+        }
+    }
+    return NULL;
+}
 /* Allocate a server to the client */
 int forward_request(int fd) {
 
@@ -36,23 +53,27 @@ int forward_request(int fd) {
     char room_num[256];
     int nbytes = recv(fd, room_num, 256 ,0);
     if (nbytes <= 0) {
-        return 1;
+        return -1;
     }
     int building = 0;
     nbytes = recv(fd, &building, sizeof(int), 0);
     if (nbytes <=0) {
-        return 1;
+        return -1;
     }
-    room_location temp(room_num);
-    temp.building = (Building) building;
+    
+    string temp_room_num(room_num);
+    int charing_server = search_room(temp_room_num, (Building) building);
+    if (charing_server = 0) {
+        cerr << "The room does not exist" << endl;
+        return -1;
+    }
 
     /* Allocation of a server */
-    map<room_location, client_info*>::iterator it = REPO.find(temp);
-    if (it == REPO.end()) {
-        cerr << "CANNOT find a server for the request room" << endl;
-        return 1;
+    client_info* server = search_server(charing_server);
+    if (server = NULL) {
+        cerr << "The room does not exist" << endl;
+        return -1;
     }
-    client_info* server = it->second;
     send(fd, server->host_name.c_str(), server->host_name.length()+1, 0);
     send(fd, &(server->port), sizeof(unsigned short), 0);
     return 0;
@@ -60,7 +81,7 @@ int forward_request(int fd) {
 
 /* Receive a command from a server */
 int handle_msg() {
-    
+    return 0;
 }
 
 /* Store connection information */
@@ -75,7 +96,7 @@ void connection_info(struct sockaddr_in &client, int fd) {
     cout << "TEST: We are get the info of connection" << endl;
     cout << "IP is " << temp->host_name << " Port number is " << temp->port << endl;
     map<int, client_info*>::iterator it = unspec_request.find(fd);
-    if (it == unspec_request.end()) {
+    if (it != unspec_request.end()) {
         cerr << "FATAL ERROR: file handler duplicated" << endl;
     }
     else {
@@ -179,7 +200,7 @@ int main(void)
                     sin_size = sizeof(Client_addr);
                     int newfd = accept(sockfd, (struct sockaddr*) &Client_addr, &sin_size);
                     if (newfd == -1) {
-                        perror("accept");
+                        cerr << "Cannot allocate a new file handler" << endl;
                         continue;
                     }
 
@@ -231,7 +252,7 @@ int main(void)
                             else if (iden == 1) {
 
                                 /* Allocate the corresponding server to the client */
-                                if (forward_request(i)) {
+                                if (forward_request(i) == -1) {
                                     cerr << "SOME ERROR when allocate a server" << endl;
                                 }
                                 close(i);
@@ -241,8 +262,7 @@ int main(void)
                             /* Other type of messages */
                             else {
 
-                                /* Someone might try to mimic servers and attack our server */
-
+                                /* Someone might try to mimic servers  */
                                 cerr << "Wrong type of message from clients" << endl;
 
                             }
