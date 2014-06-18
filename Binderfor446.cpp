@@ -81,10 +81,7 @@ int forward_request(int fd) {
     return 0;
 }
 
-void inform_server() {
-
-}
-
+/* Get the server with the minimum workload */
 client_info* min_load_server() {
     client_info* min_server=NULL;
     for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); it++) {
@@ -169,6 +166,9 @@ void shut_down() {
     for (map<int, client_info*>::iterator it = unspec_request.begin(); it != unspec_request.end(); it++) {
         client_info* temp = it->second;
         unspec_request.erase(it);
+        int fd = temp->fd;
+        char command[] = "TERMINATE";
+        send(fd, command, 10, 0);
         delete temp;
     }
     for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); it++) {
