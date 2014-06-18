@@ -9,7 +9,6 @@ typedef struct room_location {
     int charing_server_ID;
     string room_number;
     Building building;
-    unsigned int room_in_charge;
     room_location(char* room_num, Building recv_building) {
     	string temp(room_num);
     	this->room_number = temp;
@@ -19,9 +18,11 @@ typedef struct room_location {
 
 typedef struct client_info {
     int ID;
+    int fd;
     string host_name;
     unsigned short port;
     unsigned int num_room;
+    unsigned int room_in_charge;
     client_info(char* IP) {
     	string temp(IP);
     	this->host_name = temp;

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -9,6 +10,7 @@
 #include <arpa/inet.h>
 #include <vector>
 #include <map>
+#include <string.h>
 #include "Binderfor446.h"
 using namespace std;
 
@@ -79,8 +81,128 @@ int forward_request(int fd) {
     return 0;
 }
 
+void inform_server() {
+
+}
+
+client_info* min_load_server() {
+    client_info* min_server=NULL;
+    for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); it++) {
+        if (min_server==NULL) {
+            min_server=*it;
+            continue;
+        }
+        if (min_server->room_in_charge > (*it)->room_in_charge) min_server=*it;
+    }
+    return min_server;
+}
+/* Add a room */
+int add_room(int fd) {
+    static int room_id = 1;
+    char room_num[256];
+    memset(room_num, 0, 256);
+    int nbytes = recv(fd, room_num, 256 ,0);
+    if (nbytes <= 0) {
+        return -1;
+    }
+    int building = 0;
+    nbytes = recv(fd, &building, sizeof(int), 0);
+    if (nbytes <=0) {
+        return -1;
+    }
+    room_location* new_room = new room_location(room_num, (Building) building);
+    new_room->room_ID = room_id;
+    room_id++;
+    /* Find the minimum workload server */
+    client_info* min_server=min_load_server();
+
+    if (min_server!=NULL) {
+        min_server->room_in_charge++;
+        new_room->charing_server_ID = min_server->ID;
+        int min_server_fd = min_server->fd;
+        char command[] = "ADD_ROOM";
+        send(min_server_fd, command, 9, 0);
+        send(min_server_fd, room_num, 256, 0);
+        send(min_server_fd, &building, sizeof(int), 0);
+    }
+    room_list.push_back(new_room);
+    return 0;
+}
+
+/* Terminate this server */
+void terminate(int fd) {
+    int server_id=0;
+    for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); it++) {
+        if ((*it)->fd == fd) {
+            client_info* temp = *it;
+            server_id = (*it)->ID;
+            server_info.erase(it);
+            delete temp;
+            break;
+        }
+    }
+    if (server_id==0) {
+        cerr << "Server does not exist, so cannot delete it" << endl;
+        return;
+    }
+    for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); it++) {
+        if ((*it)->room_ID == server_id) {
+            client_info* min_server=min_load_server();
+            char* room_num = new char[(*it)->room_number.size()+1];
+            room_num[(*it)->room_number.size()] = 0;
+            memcpy(room_num, (*it)->room_number.c_str(), (*it)->room_number.size()+1);
+            if (min_server!=NULL) {
+                min_server->room_in_charge++;
+                (*it)->charing_server_ID = min_server->ID;
+                int min_server_fd = min_server->fd;
+                char command[] = "ADD_ROOM";
+                send(min_server_fd, command, 9, 0);
+                send(min_server_fd, room_num, (*it)->room_number.size()+1, 0);
+                send(min_server_fd, &((*it)->building), sizeof(int), 0);
+            }
+        }
+    }
+}
+
+/* Shut down the system */
+void shut_down() {
+    for (map<int, client_info*>::iterator it = unspec_request.begin(); it != unspec_request.end(); it++) {
+        client_info* temp = it->second;
+        unspec_request.erase(it);
+        delete temp;
+    }
+    for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); it++) {
+        client_info* temp = *it;
+        server_info.erase(it);
+        delete temp;
+    }
+    for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); it++) {
+        room_location* temp = *it;
+        room_list.erase(it);
+        delete temp;
+    }
+}
+
 /* Receive a command from a server */
-int handle_msg() {
+int handle_msg(int fd) {
+    char command[10];
+    recv(fd, command, 10, 0);
+    string str_command(command);
+    if (!str_command.compare("ADD_ROOM")) {
+        if (add_room(fd) == -1) {
+            cerr << "Failed to add a room" << endl;
+        }
+    }
+    else if (!str_command.compare("TERMINATE")) {
+        terminate(fd);
+    }
+    else if (!str_command.compare("SHUT_DOWN")) {
+        shut_down();
+        return -2;
+    }
+    else {
+        cerr << "Unrecognized type of command received from server" << endl;
+    }
     return 0;
 }
 
@@ -89,7 +211,7 @@ void connection_info(struct sockaddr_in &client, int fd) {
     char* IP = inet_ntoa(client.sin_addr);
     client_info* temp = new client_info(IP);
     temp->port = ntohs(client.sin_port);
-
+    temp->fd = fd;
     // temp->fd = fd;
     temp->num_room = 0;
 
@@ -225,6 +347,7 @@ int main(void)
                     /* Shake hand */
                     unsigned int iden;
                     int nbytes = recv(i,&iden,sizeof(unsigned int),0);
+                    iden = ntohs(iden);
 
                     /* Get nothing */
                     if (nbytes == 0) {
@@ -237,7 +360,7 @@ int main(void)
                     }
                     else {
                         if (FD_ISSET(i, &server_fds)) {
-                                handle_msg();
+                            if (handle_msg(i)) return 0;
                         }
                         else {
                             /* If this is a server */
@@ -252,9 +375,11 @@ int main(void)
                             else if (iden == 1) {
 
                                 /* Allocate the corresponding server to the client */
-                                if (forward_request(i) == -1) {
-                                    cerr << "SOME ERROR when allocate a server" << endl;
-                                }
+                                forward_request(i);
+                                map<int, client_info*>::iterator it = unspec_request.find(i);
+                                client_info* temp = it->second;
+                                unspec_request.erase(it);
+                                delete temp;
                                 close(i);
                                 FD_CLR(i, &fds);
                             }
