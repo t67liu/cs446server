@@ -47,6 +47,7 @@ void error(const char *msg)
 int main(int argc, char* argv[]){
 	if(argc != 3){
 		cerr<<"Num of args should be 3-- Usage: ./server BINDER_ADDRESS BINDER_PORT"<<endl;
+        return 0;
 	}
 
 	/* socketfd and portno is for client to connect
@@ -117,6 +118,7 @@ int main(int argc, char* argv[]){
     FD_SET(servStruct.socketfd_binder, &master);
     lastfd = servStruct.socketfd_binder;
 
+    char message[256];
     while (true){
         fdlist = master;
         if (select(lastfd + 1, &fdlist, NULL, NULL, NULL) < 0) { // get list of read sockets
@@ -145,8 +147,10 @@ int main(int argc, char* argv[]){
                     goto L;
                 }
                 else {
-                    char *msg = "success";             
-                    send(i,msg,strlen(msg),0);
+                    recv(i, message, 5000, 0);
+                    for(int j = 0; j <= lastfd;j++){
+                            send(j,message,strlen(message),0);
+                    }            
                 }
             }
         }
@@ -155,4 +159,5 @@ int main(int argc, char* argv[]){
     close(newsockfd);
     close(servStruct.socketfd_binder);
     close(servStruct.socketfd_client);
+    return 0;
   }
