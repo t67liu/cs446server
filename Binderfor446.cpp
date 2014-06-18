@@ -20,15 +20,31 @@ static map<int, client_info*> unspec_request;   // key is the file handler, valu
 
 /* The first time we receive a message from a server */
 void log_server(int fd) {
+    /* Get the server information */
+    char host_name[256];
+    memset(host_name, 0, 256);
+    int nbytes = recv(fd, host_name, 256 ,0);
+    if (nbytes <= 0) {
+        cerr << "FATAL ERROR: can not log a server" << endl;
+        return;
+    }
+    int port = 0;
+    nbytes = recv(fd, &port, sizeof(int), 0);
+    if (nbytes <=0) {
+        cerr << "FATAL ERROR: can not log a server" << endl;
+        return;
+    }
+
     static int server_id = 1;
     map<int, client_info*>::iterator it = unspec_request.find(fd);
     if (it == unspec_request.end()) {
         cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
     }
-    client_info* temp = it->second;
+    client_info* temp = new client_info(host_name, fd, ntohs(port));
     temp->ID = server_id;
     server_id++;
-    unspec_request.erase(fd);
+    delete (it->second);
+    unspec_request.erase(it);
     server_info.push_back(temp);
 }
 
@@ -117,8 +133,8 @@ int add_room(int fd) {
         min_server->room_in_charge++;
         new_room->charing_server_ID = min_server->ID;
         int min_server_fd = min_server->fd;
-        char command[] = "ADD_ROOM";
-        send(min_server_fd, command, 9, 0);
+        char command = 'A';
+        send(min_server_fd, &command, 1, 0);
         send(min_server_fd, room_num, 256, 0);
         send(min_server_fd, &building, sizeof(int), 0);
     }
@@ -152,8 +168,8 @@ void terminate(int fd) {
                 min_server->room_in_charge++;
                 (*it)->charing_server_ID = min_server->ID;
                 int min_server_fd = min_server->fd;
-                char command[] = "ADD_ROOM";
-                send(min_server_fd, command, 9, 0);
+                char command = 'A';
+                send(min_server_fd, &command, 1, 0);
                 send(min_server_fd, room_num, (*it)->room_number.size()+1, 0);
                 send(min_server_fd, &((*it)->building), sizeof(int), 0);
             }
@@ -167,8 +183,8 @@ void shut_down() {
         client_info* temp = it->second;
         unspec_request.erase(it);
         int fd = temp->fd;
-        char command[] = "TERMINATE";
-        send(fd, command, 10, 0);
+        char command = 'T';
+        send(fd, &command, 1, 0);
         delete temp;
     }
     for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); it++) {
@@ -185,18 +201,17 @@ void shut_down() {
 
 /* Receive a command from a server */
 int handle_msg(int fd) {
-    char command[10];
-    recv(fd, command, 10, 0);
-    string str_command(command);
-    if (!str_command.compare("ADD_ROOM")) {
+    char command;
+    recv(fd, &command, 1, 0);
+    if (command == 'A') {
         if (add_room(fd) == -1) {
             cerr << "Failed to add a room" << endl;
         }
     }
-    else if (!str_command.compare("TERMINATE")) {
+    else if (command == 'T') {
         terminate(fd);
     }
-    else if (!str_command.compare("SHUT_DOWN")) {
+    else if (command == 'S') {
         shut_down();
         return -2;
     }
@@ -281,7 +296,9 @@ int main(void)
     char hostname[256];
     gethostname(hostname,256);
 
-    cerr<< "BINDER_ADDRESS " << hostname << endl;
+    socklen_t len = sizeof(Server_addr);
+    getsockname(sockfd, (struct sockaddr *)&Server_addr, &len);	
+    cerr<< "BINDER_ADDRESS " << hostname <<endl;
     cerr<< "BINDER_PORT " << ntohs(Server_addr.sin_port) <<endl;
     
 
@@ -346,10 +363,10 @@ int main(void)
                 else {
 
                     /* Shake hand */
-                    unsigned int iden;
-                    int nbytes = recv(i,&iden,sizeof(unsigned int),0);
+                    int iden;
+                    int nbytes = recv(i,&iden,sizeof(int),0);
                     iden = ntohs(iden);
-
+                    cout << "audhwiudhaiuwdhiu     " << iden <<endl;
                     /* Get nothing */
                     if (nbytes == 0) {
                         continue;

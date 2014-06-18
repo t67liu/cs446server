@@ -76,15 +76,16 @@ int main(int argc, char* argv[]){
     FD_SET(servStruct.socketfd_client, &(servStruct.total_fd_list));
 
 
-
+   // cout<<"shit"<<endl;
 	/*set up connection to binder*/
 	socketfd_binder = socket(AF_INET, SOCK_STREAM, 0);
-    portno = atoi(getenv(argv[2]));
-    server = gethostbyname(getenv(argv[1]));
+    portno = atoi(argv[2]);
+    server = gethostbyname(argv[1]);
     if (server == NULL) {
         fprintf(stderr,"ERROR, no such host\n");
         exit(0);
     }
+   // cout<<portno<<endl;
     bzero((char *) &client_addr, sizeof(client_addr));
     client_addr.sin_family = AF_INET;
     bcopy((char *)server->h_addr, 

@@ -2,7 +2,7 @@
 using namespace std;
 
 
-typedef enum {MC, OTHER} Building;
+typedef enum {MC=1, DC, OTHER} Building;
 
 typedef struct room_location {
     int room_ID;
@@ -23,10 +23,18 @@ typedef struct client_info {
     unsigned short port;
     unsigned int num_room;
     unsigned int room_in_charge;
-    client_info(char* IP) {
+    client_info(char* IP, int temp_fd, int temp_port) {
     	string temp(IP);
     	this->host_name = temp;
         ID = 0;
+        fd = temp_fd;
+        port = temp_port;
     }
+    client_info(char* IP) {
+        string temp(IP);
+        this->host_name = temp;
+        ID = 0;
+    }
+
 } client_info;
 
