@@ -30,12 +30,51 @@ struct server_struct
 	fd_set	total_fd_list;
 	char 	serv_NAME[256];
 	int 	serv_PORT;
-	//vector<func_struct> v;
+	bool    terminate;
 
 };
 
 static struct server_struct servStruct;
 
+
+void * handle_in(void *arg){
+    string tmp;
+    char buffer[256];
+    while(!servStruct.terminate){
+        while(getline(cin,tmp)){
+            if(tmp[0] == 'a' || tmp[0] == 'A'){
+                int my_id = 0;
+                if(tmp[4] == 'M') my_id = 1;
+                int my_net_id = htonl(my_id);
+                int j = 7;
+                while(tmp[j] != '\n'){
+                    buffer[j-7] = tmp[j];
+                    j++;
+                }
+                buffer[j-7] = '\0';
+                /* send this server's port and address */
+                send(servStruct.socketfd_binder, buffer,sizeof(buffer), 0); 
+                send(servStruct.socketfd_binder, (const char*)&my_net_id, 1, 0);
+
+            }
+            else if(tmp[0] == 'S' || tmp[0] == 's'){
+                char shu = 'S';
+                send(servStruct.socketfd_binder,&shu,sizeof(shu),0);
+            }
+            else if(tmp[0] == 'T' || tmp[0] == 't'){
+                char ter = 'T';
+                send(servStruct.socketfd_binder,&ter,sizeof(ter),0);
+                servStruct.terminate = true;
+                break;
+            }
+            else{
+                cerr<<"server input: add/shutdonw/terminate"<<endl;
+            }
+        }
+
+    }
+
+}
 
 
 void error(const char *msg)
@@ -45,10 +84,16 @@ void error(const char *msg)
 }
 
 int main(int argc, char* argv[]){
-	if(argc != 3){
+	
+    servStruct.terminate = false;
+
+    if(argc != 3){
 		cerr<<"Num of args should be 3-- Usage: ./server BINDER_ADDRESS BINDER_PORT"<<endl;
         return 0;
 	}
+
+
+    pthread_t input_thread;
 
 	/* socketfd and portno is for client to connect
 		socketfd_binder is the socket connect to binder */
@@ -76,7 +121,6 @@ int main(int argc, char* argv[]){
     FD_SET(servStruct.socketfd_client, &(servStruct.total_fd_list));
 
 
-   // cout<<"shit"<<endl;
 	/*set up connection to binder*/
 	socketfd_binder = socket(AF_INET, SOCK_STREAM, 0);
     portno = atoi(argv[2]);
@@ -96,6 +140,16 @@ int main(int argc, char* argv[]){
     if (connect(socketfd_binder,(struct sockaddr *) &client_addr,sizeof(client_addr)) < 0) 
         error("ERROR connecting");
     servStruct.socketfd_binder = socketfd_binder;
+
+
+    // pthread for taking input
+
+    if(pthread_create(&input_thread,NULL,&handle_in,NULL)){
+        cerr<<"error creating pthread"<<endl;
+        return 0;
+    }
+
+
 
     int my_id = 0;
  	int my_net_id = htonl(my_id);
@@ -120,7 +174,7 @@ int main(int argc, char* argv[]){
     lastfd = servStruct.socketfd_binder;
 
     char message[256];
-    while (true){
+    while (!servStruct.terminate){
         fdlist = master;
         if (select(lastfd + 1, &fdlist, NULL, NULL, NULL) < 0) { // get list of read sockets
             perror("Server: select");
@@ -143,9 +197,17 @@ int main(int argc, char* argv[]){
                     }
                 }
                 else if (i == servStruct.socketfd_binder) { /* message from binder to terminate all servers */
-                    close(i);
-                    FD_CLR(i, &master);
-                    goto L;
+                    recv(i, message, 5000, 0);
+                    if(message[0] == 'T'){
+                        servStruct.terminate = true;
+                        goto L;
+                    }
+                    else{
+                        char room[256];
+                        int building;
+                        recv(i,room , 256, 0);
+                        recv(i,&building,4,0);
+                    }
                 }
                 else {
                     recv(i, message, 5000, 0);
