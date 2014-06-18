@@ -280,7 +280,8 @@ int main(void)
     /* Print out server information */
     char hostname[256];
     gethostname(hostname,256);
-    cerr<< "BINDER_ADDRESS " << hostname <<endl;
+
+    cerr<< "BINDER_ADDRESS " << hostname << endl;
     cerr<< "BINDER_PORT " << ntohs(Server_addr.sin_port) <<endl;
     
 
