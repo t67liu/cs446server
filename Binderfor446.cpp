@@ -156,6 +156,7 @@ void terminate(int fd) {
             server_id = (*it)->ID;
             server_info.erase(it);
             delete temp;
+            close(fd);
             break;
         }
     }
@@ -218,7 +219,7 @@ int handle_msg(int fd) {
     }
     else if (command == 'S') {
         shut_down();
-        return -2;
+        return 1;
     }
     else {
         cerr << "Unrecognized type of command received from server" << endl;
@@ -363,6 +364,11 @@ int main(void)
                     }
                     FD_SET(newfd,&fds);
                 }
+                /* If this is a server */
+                else if (FD_ISSET(i, &server_fds)) {
+                    
+                    if (handle_msg(i)) return 0;
+                }
 
                 /* Or this is a already connected socket */
                 else {
@@ -383,38 +389,33 @@ int main(void)
                     }
                     else {
                         iden = ntohs(iden);
-                        if (FD_ISSET(i, &server_fds)) {
-                            if (handle_msg(i)) return 0;
+                        /* If this is a server */
+                        if (iden == 0) {
+
+                            /* Add this handler to the server_fds */
+                            log_server(i);
+                            FD_SET(i,&server_fds);
                         }
+
+                        /* If this is a client */
+                        else if (iden == 1) {
+
+                            /* Allocate the corresponding server to the client */
+                            forward_request(i);
+                            map<int, client_info*>::iterator it = unspec_request.find(i);
+                            client_info* temp = it->second;
+                            unspec_request.erase(it);
+                            delete temp;
+                            close(i);
+                            FD_CLR(i, &fds);
+                        }
+
+                        /* Other type of messages */
                         else {
-                            /* If this is a server */
-                            if (iden == 0) {
 
-                                /* Add this handler to the server_fds */
-                                log_server(i);
-                                FD_SET(i,&server_fds);
-                            }
+                            /* Someone might try to mimic servers  */
+                            cerr << "Wrong type of message from clients" << endl;
 
-                            /* If this is a client */
-                            else if (iden == 1) {
-
-                                /* Allocate the corresponding server to the client */
-                                forward_request(i);
-                                map<int, client_info*>::iterator it = unspec_request.find(i);
-                                client_info* temp = it->second;
-                                unspec_request.erase(it);
-                                delete temp;
-                                close(i);
-                                FD_CLR(i, &fds);
-                            }
-
-                            /* Other type of messages */
-                            else {
-
-                                /* Someone might try to mimic servers  */
-                                cerr << "Wrong type of message from clients" << endl;
-
-                            }
                         }
                     }
                 }
