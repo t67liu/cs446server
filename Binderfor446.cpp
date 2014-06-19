@@ -189,12 +189,15 @@ void shut_down() {
         client_info* temp = it->second;
         unspec_request.erase(it);
         int fd = temp->fd;
-        char command = 'T';
-        send(fd, &command, 1, 0);
+        close(fd);
         delete temp;
     }
     for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); it++) {
         client_info* temp = *it;
+        int fd = temp->fd;
+        char command = 'T';
+        send(fd, &command, 1, 0);
+        close(fd);
         server_info.erase(it);
         delete temp;
     }
@@ -206,7 +209,7 @@ void shut_down() {
 }
 
 /* Receive a command from a server */
-int handle_msg(int fd) {
+int handle_msg(int fd, fd_set* server_fd, fd_set* fds) {
     char command;
     recv(fd, &command, 1, 0);
     if (command == 'A') {
@@ -216,6 +219,8 @@ int handle_msg(int fd) {
     }
     else if (command == 'T') {
         terminate(fd);
+        FD_CLR(fd, server_fd);
+        FD_CLR(fd, fds);
     }
     else if (command == 'S') {
         shut_down();
@@ -367,7 +372,7 @@ int main(void)
                 /* If this is a server */
                 else if (FD_ISSET(i, &server_fds)) {
                     
-                    if (handle_msg(i)) return 0;
+                    if (handle_msg(i, &server_fds, fds)) return 0;
                 }
 
                 /* Or this is a already connected socket */
