@@ -15,7 +15,7 @@
 #include <cstdlib>
 
 using namespace std;
-
+pthread_mutex_t *mutex;
 template <typename T> string to_string (const T& t)
 {
     std::stringstream ss;
@@ -38,10 +38,23 @@ static struct server_struct servStruct;
 
 
 void * handle_in(void *arg){
-    string tmp;
+                cout << "udwahiduwhauidh" << endl;
+
+    // string tmp;
+                char tmp[256];
     char buffer[256];
-    while(!servStruct.terminate){
-        while(getline(cin,tmp)){
+    while(true){
+                        /* 222222 */
+                pthread_mutex_lock(mutex);
+        if (servStruct.terminate) {
+            pthread_mutex_unlock(mutex);
+            return 0;
+        }
+        
+        pthread_mutex_unlock(mutex);
+        cout << 5466464654656 << endl;
+        while(cin.getline(tmp,256)){
+            cout << "udwahiduwhauidh" << endl;
             if(tmp[0] == 'a' || tmp[0] == 'A'){
                 int my_id = 0;
                 if(tmp[4] == 'M') my_id = 1;
@@ -58,13 +71,18 @@ void * handle_in(void *arg){
 
             }
             else if(tmp[0] == 'S' || tmp[0] == 's'){
-                char shu = 'S';
+                char shu = 'S'; 
                 send(servStruct.socketfd_binder,&shu,sizeof(shu),0);
             }
             else if(tmp[0] == 'T' || tmp[0] == 't'){
                 char ter = 'T';
-                send(servStruct.socketfd_binder,&ter,sizeof(ter),0);
+
+                /* 222222 */
+                pthread_mutex_lock(mutex);
                 servStruct.terminate = true;
+                pthread_mutex_unlock(mutex);
+
+                send(servStruct.socketfd_binder,&ter,sizeof(ter),0);
                 break;
             }
             else{
@@ -84,9 +102,13 @@ void error(const char *msg)
 }
 
 int main(int argc, char* argv[]){
-	
-    servStruct.terminate = false;
 
+    /*  222222222 */
+    mutex = new pthread_mutex_t();
+    pthread_mutex_init (mutex , NULL);
+
+
+    servStruct.terminate = false;
     if(argc != 3){
 		cerr<<"Num of args should be 3-- Usage: ./server BINDER_ADDRESS BINDER_PORT"<<endl;
         return 0;
@@ -143,24 +165,28 @@ int main(int argc, char* argv[]){
 
 
     // pthread for taking input
-
+    cout << "1132131231312312" << endl;
     if(pthread_create(&input_thread,NULL,&handle_in,NULL)){
         cerr<<"error creating pthread"<<endl;
         return 0;
     }
+    cout << "1132131231312312" << endl;
 
 
-
-    int my_id = 0;
- 	int my_net_id = htonl(my_id);
+    int my_id = 1313;
+    cout << "aaaaaa" << my_id << endl;
+ 	int my_net_id = htons(my_id);
  	/* send a 0 to binder, indicating this is a server */
- 	send(socketfd_binder, (const char*)&my_net_id, 1, 0);
+ 	send(socketfd_binder, &my_net_id, 4, 0);
+
+
  	/* send this server's port and address */
  	send(socketfd_binder, servStruct.serv_NAME, 256, 0); 
 
  	my_id = servStruct.serv_PORT;
- 	my_net_id	= htonl(my_id);
- 	send(socketfd_binder, (const char*)&my_net_id, 5, 0);
+    cout<<"server port    "<< servStruct.serv_PORT<<endl;
+ 	my_net_id	= htons(my_id);
+ 	send(socketfd_binder, &my_net_id, 4, 0);
 
  	/*now constant listen to clients*/
 
@@ -174,7 +200,15 @@ int main(int argc, char* argv[]){
     lastfd = servStruct.socketfd_binder;
 
     char message[256];
-    while (!servStruct.terminate){
+    while (true){
+
+        pthread_mutex_lock(mutex);
+        if (servStruct.terminate) {
+            pthread_mutex_unlock(mutex);
+            return 0;
+        }
+        
+        pthread_mutex_unlock(mutex);
         fdlist = master;
         if (select(lastfd + 1, &fdlist, NULL, NULL, NULL) < 0) { // get list of read sockets
             perror("Server: select");
@@ -199,7 +233,12 @@ int main(int argc, char* argv[]){
                 else if (i == servStruct.socketfd_binder) { /* message from binder to terminate all servers */
                     recv(i, message, 5000, 0);
                     if(message[0] == 'T'){
+
+                        /* 222222 */
+                        pthread_mutex_lock(mutex);
                         servStruct.terminate = true;
+                        pthread_mutex_unlock(mutex);
+
                         goto L;
                     }
                     else{

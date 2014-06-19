@@ -24,12 +24,17 @@ void log_server(int fd) {
     char host_name[256];
     memset(host_name, 0, 256);
     int nbytes = recv(fd, host_name, 256 ,0);
+    string str(host_name);
+    cout << "diawdhuadhia    " << str << endl;
     if (nbytes <= 0) {
         cerr << "FATAL ERROR: can not log a server" << endl;
         return;
     }
     int port = 0;
     nbytes = recv(fd, &port, sizeof(int), 0);
+    port = ntohs(port);
+        cout << "diawdhuadhia    " << port << endl;
+
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a server" << endl;
         return;
@@ -366,7 +371,7 @@ int main(void)
                     int iden;
                     int nbytes = recv(i,&iden,sizeof(int),0);
                     iden = ntohs(iden);
-                    cout << "audhwiudhaiuwdhiu     " << iden <<endl;
+                    cout << "diawodaoij " << iden << endl;
                     /* Get nothing */
                     if (nbytes == 0) {
                         continue;
@@ -377,6 +382,7 @@ int main(void)
                         FD_CLR(i, &fds);
                     }
                     else {
+                        iden = ntohs(iden);
                         if (FD_ISSET(i, &server_fds)) {
                             if (handle_msg(i)) return 0;
                         }
