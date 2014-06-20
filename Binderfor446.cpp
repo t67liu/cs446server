@@ -20,15 +20,33 @@ static map<int, client_info*> unspec_request;   // key is the file handler, valu
 
 /* The first time we receive a message from a server */
 void log_server(int fd) {
+    /* Get the server information */
+    char host_name[256];
+    memset(host_name, 0, 256);
+    int nbytes = recv(fd, host_name, 256 ,0);
+    string str(host_name);
+    if (nbytes <= 0) {
+        cerr << "FATAL ERROR: can not log a server" << endl;
+        return;
+    }
+    int port = 0;
+    nbytes = recv(fd, &port, sizeof(int), 0);
+    port = ntohs(port);
+    if (nbytes <=0) {
+        cerr << "FATAL ERROR: can not log a server" << endl;
+        return;
+    }
+
     static int server_id = 1;
     map<int, client_info*>::iterator it = unspec_request.find(fd);
     if (it == unspec_request.end()) {
         cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
     }
-    client_info* temp = it->second;
+    client_info* temp = new client_info(host_name, fd, ntohs(port));
     temp->ID = server_id;
     server_id++;
-    unspec_request.erase(fd);
+    delete (it->second);
+    unspec_request.erase(it);
     server_info.push_back(temp);
 }
 
@@ -81,10 +99,7 @@ int forward_request(int fd) {
     return 0;
 }
 
-void inform_server() {
-
-}
-
+/* Get the server with the minimum workload */
 client_info* min_load_server() {
     client_info* min_server=NULL;
     for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); it++) {
@@ -120,8 +135,8 @@ int add_room(int fd) {
         min_server->room_in_charge++;
         new_room->charing_server_ID = min_server->ID;
         int min_server_fd = min_server->fd;
-        char command[] = "ADD_ROOM";
-        send(min_server_fd, command, 9, 0);
+        char command = 'A';
+        send(min_server_fd, &command, 1, 0);
         send(min_server_fd, room_num, 256, 0);
         send(min_server_fd, &building, sizeof(int), 0);
     }
@@ -138,6 +153,7 @@ void terminate(int fd) {
             server_id = (*it)->ID;
             server_info.erase(it);
             delete temp;
+            close(fd);
             break;
         }
     }
@@ -155,8 +171,8 @@ void terminate(int fd) {
                 min_server->room_in_charge++;
                 (*it)->charing_server_ID = min_server->ID;
                 int min_server_fd = min_server->fd;
-                char command[] = "ADD_ROOM";
-                send(min_server_fd, command, 9, 0);
+                char command = 'A';
+                send(min_server_fd, &command, 1, 0);
                 send(min_server_fd, room_num, (*it)->room_number.size()+1, 0);
                 send(min_server_fd, &((*it)->building), sizeof(int), 0);
             }
@@ -166,17 +182,24 @@ void terminate(int fd) {
 
 /* Shut down the system */
 void shut_down() {
-    for (map<int, client_info*>::iterator it = unspec_request.begin(); it != unspec_request.end(); it++) {
+    for (map<int, client_info*>::iterator it = unspec_request.begin(); it != unspec_request.end(); ) {
         client_info* temp = it->second;
         unspec_request.erase(it);
+        int fd = temp->fd;
+        close(fd);
         delete temp;
     }
-    for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); it++) {
+    cout << server_info.size() << endl;
+    for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); ) {
         client_info* temp = *it;
-        server_info.erase(it);
+        int fd = temp->fd;
+        char command = 'T';
+        send(fd, &command, 1, 0);
+        close(fd);
         delete temp;
+        server_info.erase(server_info.begin());
     }
-    for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); it++) {
+    for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); ) {
         room_location* temp = *it;
         room_list.erase(it);
         delete temp;
@@ -184,21 +207,22 @@ void shut_down() {
 }
 
 /* Receive a command from a server */
-int handle_msg(int fd) {
-    char command[10];
-    recv(fd, command, 10, 0);
-    string str_command(command);
-    if (!str_command.compare("ADD_ROOM")) {
+int handle_msg(int fd, fd_set* server_fd, fd_set* fds) {
+    char command;
+    recv(fd, &command, 1, 0);
+    if (command == 'A') {
         if (add_room(fd) == -1) {
             cerr << "Failed to add a room" << endl;
         }
     }
-    else if (!str_command.compare("TERMINATE")) {
+    else if (command == 'T') {
         terminate(fd);
+        FD_CLR(fd, server_fd);
+        FD_CLR(fd, fds);
     }
-    else if (!str_command.compare("SHUT_DOWN")) {
+    else if (command == 'S') {
         shut_down();
-        return -2;
+        return 1;
     }
     else {
         cerr << "Unrecognized type of command received from server" << endl;
@@ -280,6 +304,9 @@ int main(void)
     /* Print out server information */
     char hostname[256];
     gethostname(hostname,256);
+
+    socklen_t len = sizeof(Server_addr);
+    getsockname(sockfd, (struct sockaddr *)&Server_addr, &len);	
     cerr<< "BINDER_ADDRESS " << hostname <<endl;
     cerr<< "BINDER_PORT " << ntohs(Server_addr.sin_port) <<endl;
     
@@ -340,15 +367,19 @@ int main(void)
                     }
                     FD_SET(newfd,&fds);
                 }
+                /* If this is a server */
+                else if (FD_ISSET(i, &server_fds)) {
+                    
+                    if (handle_msg(i, &server_fds, &fds)) return 0;
+                }
 
                 /* Or this is a already connected socket */
                 else {
 
                     /* Shake hand */
-                    unsigned int iden;
-                    int nbytes = recv(i,&iden,sizeof(unsigned int),0);
+                    int iden;
+                    int nbytes = recv(i,&iden,sizeof(int),0);
                     iden = ntohs(iden);
-
                     /* Get nothing */
                     if (nbytes == 0) {
                         continue;
@@ -359,38 +390,34 @@ int main(void)
                         FD_CLR(i, &fds);
                     }
                     else {
-                        if (FD_ISSET(i, &server_fds)) {
-                            if (handle_msg(i)) return 0;
+                        iden = ntohs(iden);
+                        /* If this is a server */
+                        if (iden == 0) {
+
+                            /* Add this handler to the server_fds */
+                            log_server(i);
+                            FD_SET(i,&server_fds);
                         }
+
+                        /* If this is a client */
+                        else if (iden == 1) {
+
+                            /* Allocate the corresponding server to the client */
+                            forward_request(i);
+                            map<int, client_info*>::iterator it = unspec_request.find(i);
+                            client_info* temp = it->second;
+                            unspec_request.erase(it);
+                            delete temp;
+                            close(i);
+                            FD_CLR(i, &fds);
+                        }
+
+                        /* Other type of messages */
                         else {
-                            /* If this is a server */
-                            if (iden == 0) {
 
-                                /* Add this handler to the server_fds */
-                                log_server(i);
-                                FD_SET(i,&server_fds);
-                            }
+                            /* Someone might try to mimic servers  */
+                            cerr << "Wrong type of message from clients" << endl;
 
-                            /* If this is a client */
-                            else if (iden == 1) {
-
-                                /* Allocate the corresponding server to the client */
-                                forward_request(i);
-                                map<int, client_info*>::iterator it = unspec_request.find(i);
-                                client_info* temp = it->second;
-                                unspec_request.erase(it);
-                                delete temp;
-                                close(i);
-                                FD_CLR(i, &fds);
-                            }
-
-                            /* Other type of messages */
-                            else {
-
-                                /* Someone might try to mimic servers  */
-                                cerr << "Wrong type of message from clients" << endl;
-
-                            }
                         }
                     }
                 }
