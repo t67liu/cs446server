@@ -186,37 +186,27 @@ void terminate(int fd) {
 
 /* Shut down the system */
 void shut_down() {
-    for (map<int, client_info*>::iterator it = unspec_request.begin(); it != unspec_request.end(); it++) {
+    for (map<int, client_info*>::iterator it = unspec_request.begin(); it != unspec_request.end(); ) {
         client_info* temp = it->second;
         unspec_request.erase(it);
         int fd = temp->fd;
         close(fd);
-        cout << 111111111 << endl;
         delete temp;
     }
     cout << server_info.size() << endl;
-    for (vector<client_info*>::iterator it = server_info.begin(); server_info.size(); it++) {
-            cout << server_info.size() << endl;
+    for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end();) {
         client_info* temp = *it;
-                cout << 555552222 << endl;
         int fd = temp->fd;
-                cout << 1111122222 << endl;
         char command = 'T';
-        
-                cout << 3333322222 << endl;
-                send(fd, &command, 1, 0);
+        send(fd, &command, 1, 0);
         close(fd);
-                cout << 44444222 << endl;
         delete temp;
         server_info.erase(server_info.begin());
-        cout << 2222222222 << endl;
     }
-    cout << 444444 << endl;
-    for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); it++) {
+    for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end();) {
         room_location* temp = *it;
         room_list.erase(it);
         delete temp;
-        cout << 3333333333 << endl;
     }
 }
 
