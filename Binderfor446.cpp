@@ -182,6 +182,8 @@ void terminate(int fd) {
 
 /* Shut down the system */
 void shut_down() {
+
+    /* Erase all the elements that are waiting for being processed */
     for (map<int, client_info*>::iterator it = unspec_request.begin(); it != unspec_request.end(); ) {
         client_info* temp = it->second;
         unspec_request.erase(it);
@@ -189,7 +191,8 @@ void shut_down() {
         close(fd);
         delete temp;
     }
-    cout << server_info.size() << endl;
+
+    /* Erase all the servers' information */
     for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); ) {
         client_info* temp = *it;
         int fd = temp->fd;
@@ -199,6 +202,8 @@ void shut_down() {
         delete temp;
         server_info.erase(server_info.begin());
     }
+
+    /* Erase all the rooms' information */
     for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); ) {
         room_location* temp = *it;
         room_list.erase(it);
