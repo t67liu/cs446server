@@ -51,6 +51,7 @@ void log_server(int fd) {
     delete (it->second);
     unspec_request.erase(it);
     server_info.push_back(temp);
+    cout << "how many times we push back" <<endl;
 }
 
 int search_room(string room_num, Building check_building) {
@@ -190,21 +191,32 @@ void shut_down() {
         unspec_request.erase(it);
         int fd = temp->fd;
         close(fd);
+        cout << 111111111 << endl;
         delete temp;
     }
-    for (vector<client_info*>::iterator it = server_info.begin(); it != server_info.end(); it++) {
+    cout << server_info.size() << endl;
+    for (vector<client_info*>::iterator it = server_info.begin(); server_info.size(); it++) {
+            cout << server_info.size() << endl;
         client_info* temp = *it;
+                cout << 555552222 << endl;
         int fd = temp->fd;
+                cout << 1111122222 << endl;
         char command = 'T';
-        send(fd, &command, 1, 0);
+        
+                cout << 3333322222 << endl;
+                send(fd, &command, 1, 0);
         close(fd);
-        server_info.erase(it);
+                cout << 44444222 << endl;
         delete temp;
+        server_info.erase(server_info.begin());
+        cout << 2222222222 << endl;
     }
+    cout << 444444 << endl;
     for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); it++) {
         room_location* temp = *it;
         room_list.erase(it);
         delete temp;
+        cout << 3333333333 << endl;
     }
 }
 
@@ -399,6 +411,7 @@ int main(void)
 
                             /* Add this handler to the server_fds */
                             log_server(i);
+                            cout << "How many times we have log a server" << endl;
                             FD_SET(i,&server_fds);
                         }
 
