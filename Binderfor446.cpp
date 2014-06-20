@@ -372,7 +372,7 @@ int main(void)
                 /* If this is a server */
                 else if (FD_ISSET(i, &server_fds)) {
                     
-                    if (handle_msg(i, &server_fds, fds)) return 0;
+                    if (handle_msg(i, &server_fds, &fds)) return 0;
                 }
 
                 /* Or this is a already connected socket */
