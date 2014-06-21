@@ -13,9 +13,16 @@
 #include <signal.h>
 #include <iostream>
 #include <cstdlib>
+#include <vector>
 
 using namespace std;
+
+
 pthread_mutex_t *mutex;
+static struct server_struct servStruct;
+static vector<socket_room_info> info_vect;
+
+/* Convert a char array into a string */
 template <typename T> string to_string (const T& t)
 {
     std::stringstream ss;
@@ -23,6 +30,7 @@ template <typename T> string to_string (const T& t)
     return ss.str();
 }
 
+/* Server information */
 struct server_struct
 {
 	int 	socketfd_binder;
@@ -31,16 +39,72 @@ struct server_struct
 	char 	serv_NAME[256];
 	int 	serv_PORT;
 	bool    terminate;
+};
+
+/* Room information */
+class socket_room_info{
+public:    
+    int id;
+
+    /* Building number */
+    int Building;
+
+    /* Room Name */
+    char room[10];
+
+    /* All the file handlers for clients are stored here */
+    vector<int> client_fds;
+
+    /* Add a new client into this room */
+    void add_client(int fd) {
+        this->client_fds.push_back(fd);
+    }
 
 };
 
-static struct server_struct servStruct;
+/* Finding the room which the client wants to join in */
+socket_room_info* get_room(int building, string room_name) {
 
+    /* Go through all the rooms */
+    for (vector<socket_room_info>::iterator it = info_vect.begin(); it != info_vect.end(); it++) {
+        if (room_name.compare(to_string(it->room) && it->building == building) {
+            return &(*it);
+        }
+    }
 
+    /* Cannot find the room */
+    return NULL;
+}
+
+/* Receive a request from the client */
+int rece_request(int fd) {
+    int building = 0;
+    int nbytes = recv(fd, &building, 4, 0);
+    if (nbytes <= 0) {
+        cerr << "FAILED to get the information from client" <<endl;
+        return -1;
+    }
+    char room[10];
+    memset(room, 0, 10);
+    nbytes = recv(fd, &room, 10, 0);
+    if (nbytes <= 0) {
+        cerr << "FAILED to get the information from client" <<endl;
+        return -1;
+    }
+    socket_room_info* room = get_room(building, tostring(room));
+    if (room == NULL) {
+        cerr << "NOT a valid room" << endl;
+        return -1;
+    }
+    room->add_client(fd);
+    return 0;
+}
+
+/* Handle msg from the binder */
 void * handle_in(void *arg){
     // string tmp;
     pthread_mutex_lock(mutex);
-    cout<<"input thread"<<endl;
+    cerr<<"input thread"<<endl;
     string tmp;
     char buffer[256];
     while(true){
@@ -52,7 +116,7 @@ void * handle_in(void *arg){
             printf("type ur input here:\n");
             cin >> tmp;
             if(tmp == "add"){
-                cout<<"adding"<<endl;
+                cerr<<"adding"<<endl;
                 char add ='A';
                 send(servStruct.socketfd_binder,&add,1,0);
                 cin>>tmp;
@@ -67,14 +131,14 @@ void * handle_in(void *arg){
 
             }
             else if(tmp == "shutdown"){
-                cout<<"input : s"<<endl;
+                cerr<<"input : s"<<endl;
                 servStruct.terminate = true;
                 char shu = 'S'; 
                 send(servStruct.socketfd_binder,&shu,sizeof(shu),0);
             }
             else if(tmp == "terminate"){
                 char ter = 'T';
-                cout<<"input : t"<<endl;
+                cerr<<"input : t"<<endl;
                 /* 222222 */
                 servStruct.terminate = true;
 
@@ -102,7 +166,7 @@ void *handle_connect(void *arg){
     char message[256];
     printf("accepting client\n");
     while (true){
-        cout<<"main is running"<<endl;
+        cerr<<"main is running"<<endl;
         if (servStruct.terminate) {
             break;
         }
@@ -116,7 +180,9 @@ void *handle_connect(void *arg){
         //loop through all sockets
         for (int i = 0; i <= lastfd; i++) {
             if (FD_ISSET (i, &fdlist)){ // new connection
+                cerr<<"incoming is in fd list"<<endl;
                 if (i == servStruct.socketfd_client) {
+                    cerr<<"incoming socket first try"<<endl;
                     cli_len = sizeof(cli_addr);
                     newsockfd = accept(servStruct.socketfd_client, (struct sockaddr *) &cli_addr, &cli_len);
                     if (newsockfd < 0) {
@@ -129,7 +195,7 @@ void *handle_connect(void *arg){
                     }
                 }
                 else if (i == servStruct.socketfd_binder) { /* message from binder to terminate all servers */
-                    cout<<"recv from binder"<<endl;   
+                    cerr<<"recv from binder"<<endl;   
                     recv(i, message, 256, 0);
                     printf("%s\n",message );
                     if(message[0] == 'T'){
@@ -144,10 +210,31 @@ void *handle_connect(void *arg){
                     }
                 }
                 else {
-                    recv(i, message, 5000, 0);
-                    for(int j = 0; j <= lastfd;j++){
-                            send(j,message,strlen(message),0);
-                    }            
+                    cerr<<"recv from client"<<endl;
+                    if(info_vect.size() <= i){
+                        /*recieve client info*/
+                        socket_room_info tmp;
+                        tmp.id = i;
+                        recv(i,tmp.room,256,0);
+                        recv(i,tmp.name,256,0);
+                        tmp.name[strlen(tmp.name)] = '\n';
+                        info_vect.push_back(tmp);
+                    }
+
+                    recv(i, message, 256, 0);   
+                    cout<<"message:   "<<message<<endl;
+                    message[strlen(message)] = '\n';
+                    cout<<"lastfd  :"<<lastfd<<endl;
+
+                    for(int j = 5; j <= lastfd;j++){
+                        cerr<<"send to client j   " <<j<<endl;
+                        if(j != servStruct.socketfd_binder && j != i&&(info_vect[j].room == info_vect[i].room)){ 
+                            send(j,info_vect[i].name,sizeof(info_vect[i].name),0);
+                            send(j,message,sizeof(message),0);
+                        }
+                    }
+
+                    memset(&message,0,sizeof(message));            
                 }
             }
         }
@@ -166,7 +253,8 @@ void error(const char *msg)
 }
 
 int main(int argc, char* argv[]){
-
+    socket_room_info dummy;
+    info_vect.resize(5,dummy);
     /*  222222222 */
     mutex = new pthread_mutex_t();
     pthread_mutex_init (mutex , NULL);
@@ -216,7 +304,7 @@ int main(int argc, char* argv[]){
         fprintf(stderr,"ERROR, no such host\n");
         exit(0);
     }
-   // cout<<portno<<endl;
+   // cerr<<portno<<endl;
     bzero((char *) &client_addr, sizeof(client_addr));
     client_addr.sin_family = AF_INET;
     bcopy((char *)server->h_addr, 
@@ -237,7 +325,7 @@ int main(int argc, char* argv[]){
 
  	/* send this server's port and address */
  	send(socketfd_binder, servStruct.serv_NAME, 256, 0); 
-
+    cerr<<" my port    : "<<servStruct.serv_PORT<<endl;
  	my_id = servStruct.serv_PORT;
  	my_net_id	= htons(my_id);
  	send(socketfd_binder, &my_net_id, 4, 0);
@@ -248,6 +336,7 @@ int main(int argc, char* argv[]){
         cerr<<"error creating pthread"<<endl;
         return 0;
     }
+
 
     if(pthread_create(&accept_thread,NULL,&handle_connect,NULL)){
         cerr<<"error creating pthread"<<endl;
