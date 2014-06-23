@@ -19,8 +19,8 @@ using namespace std;
 
 
 pthread_mutex_t *mutex;
-static struct server_struct servStruct;
-static vector<socket_room_info> info_vect;
+
+
 
 /* Convert a char array into a string */
 template <typename T> string to_string (const T& t)
@@ -45,60 +45,69 @@ struct server_struct
 class socket_room_info{
 public:    
     int id;
+    char name[256];
+    char room[256];
+    bool dummy;
 
-    /* Building number */
-    int Building;
+    // /* Building number */
+    // int Building;
 
-    /* Room Name */
-    char room[10];
+    // /* Room Name */
+    // char room[10];
 
-    /* All the file handlers for clients are stored here */
-    vector<int> client_fds;
+    // /* All the file handlers for clients are stored here */
+    // vector<int> client_fds;
 
-    /* Add a new client into this room */
-    void add_client(int fd) {
-        this->client_fds.push_back(fd);
-    }
+    // /* Add a new client into this room */
+    // void add_client(int fd) {
+    //     this->client_fds.push_back(fd);
+    //}
 
 };
 
-/* Finding the room which the client wants to join in */
-socket_room_info* get_room(int building, string room_name) {
 
-    /* Go through all the rooms */
-    for (vector<socket_room_info>::iterator it = info_vect.begin(); it != info_vect.end(); it++) {
-        if (room_name.compare(to_string(it->room) && it->building == building) {
-            return &(*it);
-        }
-    }
 
-    /* Cannot find the room */
-    return NULL;
-}
+static struct server_struct servStruct;
+static vector<socket_room_info> info_vect;
+int glo_size = 0;
 
-/* Receive a request from the client */
-int rece_request(int fd) {
-    int building = 0;
-    int nbytes = recv(fd, &building, 4, 0);
-    if (nbytes <= 0) {
-        cerr << "FAILED to get the information from client" <<endl;
-        return -1;
-    }
-    char room[10];
-    memset(room, 0, 10);
-    nbytes = recv(fd, &room, 10, 0);
-    if (nbytes <= 0) {
-        cerr << "FAILED to get the information from client" <<endl;
-        return -1;
-    }
-    socket_room_info* room = get_room(building, tostring(room));
-    if (room == NULL) {
-        cerr << "NOT a valid room" << endl;
-        return -1;
-    }
-    room->add_client(fd);
-    return 0;
-}
+// /* Finding the room which the client wants to join in */
+// socket_room_info* get_room(int building, string room_name) {
+
+//     /* Go through all the rooms */
+//     for (vector<socket_room_info>::iterator it = info_vect.begin(); it != info_vect.end(); it++) {
+//         if (room_name.compare(to_string(it->room) && it->building == building) {
+//             return &(*it);
+//         }
+//     }
+
+//     /* Cannot find the room */
+//     return NULL;
+// }
+
+// /* Receive a request from the client */
+// int rece_request(int fd) {
+//     int building = 0;
+//     int nbytes = recv(fd, &building, 4, 0);
+//     if (nbytes <= 0) {
+//         cerr << "FAILED to get the information from client" <<endl;
+//         return -1;
+//     }
+//     char room[10];
+//     memset(room, 0, 10);
+//     nbytes = recv(fd, &room, 10, 0);
+//     if (nbytes <= 0) {
+//         cerr << "FAILED to get the information from client" <<endl;
+//         return -1;
+//     }
+//     socket_room_info* room = get_room(building, tostring(room));
+//     if (room == NULL) {
+//         cerr << "NOT a valid room" << endl;
+//         return -1;
+//     }
+//     room->add_client(fd);
+//     return 0;
+// }
 
 /* Handle msg from the binder */
 void * handle_in(void *arg){
@@ -197,7 +206,10 @@ void *handle_connect(void *arg){
                 else if (i == servStruct.socketfd_binder) { /* message from binder to terminate all servers */
                     cerr<<"recv from binder"<<endl;   
                     recv(i, message, 256, 0);
-                    printf("%s\n",message );
+                    if(strlen(message) == 0){
+                        servStruct.terminate = true;
+                        break;
+                    }
                     if(message[0] == 'T'){
                         servStruct.terminate = true;
                         goto L;
@@ -210,27 +222,38 @@ void *handle_connect(void *arg){
                     }
                 }
                 else {
-                    cerr<<"recv from client"<<endl;
+                    cerr<<"recv from client :   "<<i<<endl;
                     if(info_vect.size() <= i){
                         /*recieve client info*/
                         socket_room_info tmp;
                         tmp.id = i;
-                        recv(i,tmp.room,256,0);
-                        recv(i,tmp.name,256,0);
+                        recv(i,tmp.room,6,0);
+                        recv(i,tmp.name,6,0);
                         tmp.name[strlen(tmp.name)] = '\n';
+                        tmp.room[strlen(tmp.room)] = '\0';
+                        tmp.dummy = false;
                         info_vect.push_back(tmp);
                     }
+                    else{
 
-                    recv(i, message, 256, 0);   
-                    cout<<"message:   "<<message<<endl;
-                    message[strlen(message)] = '\n';
-                    cout<<"lastfd  :"<<lastfd<<endl;
+                        recv(i, message, 256, 0);   
 
-                    for(int j = 5; j <= lastfd;j++){
-                        cerr<<"send to client j   " <<j<<endl;
-                        if(j != servStruct.socketfd_binder && j != i&&(info_vect[j].room == info_vect[i].room)){ 
-                            send(j,info_vect[i].name,sizeof(info_vect[i].name),0);
-                            send(j,message,sizeof(message),0);
+                        
+                        if(strlen(message) == 0){
+                            info_vect[i].dummy = true;
+                            FD_CLR(i,&master);
+                        }
+                        message[strlen(message)] = '\n';
+                        bool room_equal = true;
+                        for(int j = 5; j <= lastfd;j++){
+                            for(int k = 0; k < 6;k++){
+                                if(info_vect[j].room[k] != info_vect[i].room[k]) room_equal = false;
+                            }
+                            if(j != i && room_equal&&!info_vect[j].dummy){ 
+                                send(j,info_vect[i].name,sizeof(info_vect[i].name),0);
+                                send(j,message,sizeof(message),0);
+                            }
+                            room_equal = true;
                         }
                     }
 
@@ -254,7 +277,9 @@ void error(const char *msg)
 
 int main(int argc, char* argv[]){
     socket_room_info dummy;
+    dummy.id = -1;
     info_vect.resize(5,dummy);
+    glo_size = 5;
     /*  222222222 */
     mutex = new pthread_mutex_t();
     pthread_mutex_init (mutex , NULL);
