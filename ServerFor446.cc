@@ -250,7 +250,7 @@ void *handle_connect(void *arg){
                                 if(info_vect[j].room[k] != info_vect[i].room[k]) room_equal = false;
                             }
                             if(j != i && room_equal&&!info_vect[j].dummy){ 
-                                send(j,info_vect[i].name,sizeof(info_vect[i].name),0);
+                                //send(j,info_vect[i].name,sizeof(info_vect[i].name),0);
                                 send(j,message,sizeof(message),0);
                             }
                             room_equal = true;
@@ -308,7 +308,7 @@ int main(int argc, char* argv[]){
     bzero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(0);
+    serv_addr.sin_port = htons(54321);
     if (bind(socketfd, (struct sockaddr *) &serv_addr,
               sizeof(serv_addr)) < 0) 
               error("ERROR on binding");
