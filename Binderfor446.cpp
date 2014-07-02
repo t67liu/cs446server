@@ -66,8 +66,23 @@ client_info* search_server(int server_id) {
     }
     return NULL;
 }
+
 /* Allocate a server to the client */
 int forward_request(int fd) {
+
+    cout << "kadbwiduanwidbnaw" << endl;
+    /* Send out all room's info */
+    for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); it++) {
+        char* room_num = new char[(*it)->room_number.size()+1];
+        room_num[(*it)->room_number.size()] = 0;
+        memcpy(room_num, (*it)->room_number.c_str(), (*it)->room_number.size()+1);
+        int command = 0;
+        send(fd, &command, 4, 0);
+        send(fd, &((*it)->building), sizeof(int), 0);
+        send(fd, room_num, (*it)->room_number.size()+1, 0);
+    }
+    int command = 1;
+    send(fd, &command, 4, 0);
 
     /* Get the room information */
     char room_num[256];
@@ -83,14 +98,14 @@ int forward_request(int fd) {
     
     string temp_room_num(room_num);
     int charing_server = search_room(temp_room_num, (Building) building);
-    if (charing_server = 0) {
+    if (charing_server == 0) {
         cerr << "The room does not exist" << endl;
         return -1;
     }
 
     /* Allocation of a server */
     client_info* server = search_server(charing_server);
-    if (server = NULL) {
+    if (server == NULL) {
         cerr << "The room does not exist" << endl;
         return -1;
     }
