@@ -95,7 +95,8 @@ int forward_request(int fd) {
         return -1;
     }
     send(fd, server->host_name.c_str(), server->host_name.length()+1, 0);
-    send(fd, &(server->port), sizeof(unsigned short), 0);
+    int tmp_port = htons(server->port);
+    send(fd, &(tmp_port), sizeof(unsigned short), 0);
     return 0;
 }
 
