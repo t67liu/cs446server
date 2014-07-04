@@ -110,7 +110,7 @@ int forward_request(int fd) {
         return -1;
     }
     send(fd, server->host_name.c_str(), server->host_name.length()+1, 0);
-    int tmp_port = htons(server->port);
+    int tmp_port = htonl(server->port);
     send(fd, &(tmp_port), sizeof(unsigned short), 0);
     return 0;
 }
@@ -230,7 +230,8 @@ void shut_down() {
 /* Receive a command from a server */
 int handle_msg(int fd, fd_set* server_fd, fd_set* fds) {
     char command;
-    recv(fd, &command, 1, 0);
+    int nbytes = recv(fd, &command, 1, 0);
+    if (nbytes <= 0) return 0;
     if (command == 'A') {
         if (add_room(fd) == -1) {
             cerr << "Failed to add a room" << endl;
@@ -299,7 +300,7 @@ int main(void)
     
     /* Initialize the address information */
     Server_addr.sin_family = AF_INET;   // Internet address domain
-    Server_addr.sin_port = htons(0);    // Dynamically binding a port, it is necessary to convert this to network byte order
+    Server_addr.sin_port = htonl(0);    // Dynamically binding a port, it is necessary to convert this to network byte order
     Server_addr.sin_addr.s_addr = INADDR_ANY;   // IP address of the host
     
     // memset(Server_addr.sin_zero, '\0', sizeof Server_addr);
@@ -315,7 +316,6 @@ int main(void)
     //     std::cout<<"getsockname failed: " << strerror(errno) <<std::endl;
     //     return BINDER_GET_SOCKFD_FAIL;
     // }
-    
     /* Listen on the socket with the maximum number of pending requests of 20 */
     if (listen(sockfd, 20) == -1) {
         std::cout<< "Binder Socket: Listening failed"<<std::endl;
@@ -399,8 +399,14 @@ int main(void)
 
                     /* Shake hand */
                     int iden;
-                    int nbytes = recv(i,&iden,sizeof(int),0);
-                    iden = ntohs(iden);
+                    char a[3];
+                    recv(i,a,3,0);
+                    string cc(a);
+                    cout << "got string cc " << cc << endl;
+                    int nbytes = recv(i,&iden,sizeof(short int),0);
+                    iden = ntohl(iden);
+                    cout << "got string cc " << iden << endl;
+
                     /* Get nothing */
                     if (nbytes == 0) {
                         continue;
@@ -422,7 +428,7 @@ int main(void)
 
                         /* If this is a client */
                         else if (iden == 1) {
-
+                            cout << "Get request from client" << endl;
                             /* Allocate the corresponding server to the client */
                             forward_request(i);
                             map<int, client_info*>::iterator it = unspec_request.find(i);
@@ -435,7 +441,7 @@ int main(void)
 
                         /* Other type of messages */
                         else {
-
+                            cout << iden << endl;
                             /* Someone might try to mimic servers  */
                             cerr << "Wrong type of message from clients" << endl;
 
