@@ -70,7 +70,6 @@ client_info* search_server(int server_id) {
 /* Allocate a server to the client */
 int forward_request(int fd) {
 
-    cout << "kadbwiduanwidbnaw" << endl;
     /* Send out all room's info */
     for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); it++) {
         char* room_num = new char[(*it)->room_number.size()+1];
@@ -178,7 +177,7 @@ void terminate(int fd) {
         return;
     }
     for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); it++) {
-        if ((*it)->room_ID == server_id) {
+        if ((*it)->charing_server_ID == server_id) {
             client_info* min_server=min_load_server();
             char* room_num = new char[(*it)->room_number.size()+1];
             room_num[(*it)->room_number.size()] = 0;
@@ -191,6 +190,15 @@ void terminate(int fd) {
                 send(min_server_fd, &command, 1, 0);
                 send(min_server_fd, room_num, (*it)->room_number.size()+1, 0);
                 send(min_server_fd, &((*it)->building), sizeof(int), 0);
+                cout << "oaidwuhdaiuhdiwad" << endl;
+            }
+            else {
+                /* Erase all the rooms' information */
+                for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); ) {
+                    room_location* temp = *it;
+                    room_list.erase(it);
+                    delete temp;
+                }
             }
         }
     }
@@ -399,13 +407,8 @@ int main(void)
 
                     /* Shake hand */
                     int iden;
-                    char a[3];
-                    recv(i,a,3,0);
-                    string cc(a);
-                    cout << "got string cc " << cc << endl;
-                    int nbytes = recv(i,&iden,sizeof(short int),0);
+                    int nbytes = recv(i,&iden,sizeof(int),0);
                     iden = ntohl(iden);
-                    cout << "got string cc " << iden << endl;
 
                     /* Get nothing */
                     if (nbytes == 0) {
@@ -417,9 +420,9 @@ int main(void)
                         FD_CLR(i, &fds);
                     }
                     else {
-                        iden = ntohs(iden);
                         /* If this is a server */
                         if (iden == 0) {
+                            cout << "Get request from server" << endl;
 
                             /* Add this handler to the server_fds */
                             log_server(i);
