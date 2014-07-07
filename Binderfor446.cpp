@@ -19,21 +19,21 @@ static vector<room_location*> room_list;
 static map<int, client_info*> unspec_request;   // key is the file handler, value is the info
 static client_info* login_server;
 
-void registr_login_server(int fd) {
+void register_login_server(int fd) {
         /* Get the server information */
     char host_name[256];
     memset(host_name, 0, 256);
     int nbytes = recv(fd, host_name, 256 ,0);
     string str(host_name);
     if (nbytes <= 0) {
-        cerr << "FATAL ERROR: can not log a server" << endl;
+        cerr << "FATAL ERROR: can not log the login server" << endl;
         return;
     }
     int port = 0;
     nbytes = recv(fd, &port, sizeof(int), 0);
     port = htonl(port);
     if (nbytes <=0) {
-        cerr << "FATAL ERROR: can not log a server" << endl;
+        cerr << "FATAL ERROR: can not log the login server" << endl;
         return;
     }
 
@@ -126,6 +126,17 @@ int register_info(int fd) {
 
 /* The first time we receive a message from a server */
 void log_server(int fd) {
+    if (login_server == NULL) {
+        close(fd);
+        map<int, client_info*>::iterator it = unspec_request.find(fd);
+        if (it == unspec_request.end()) {
+            cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
+            return;
+        }
+        delete (it->second);
+        unspec_request.erase(it);
+        return;
+    }
     /* Get the server information */
     char host_name[256];
     memset(host_name, 0, 256);
@@ -137,18 +148,22 @@ void log_server(int fd) {
     }
     int port = 0;
     nbytes = recv(fd, &port, sizeof(int), 0);
-    port = htonl(port);
+    port = ntohl(port);
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a server" << endl;
         return;
     }
+
+    send(fd, login_server->host_name.c_str(), login_server->host_name.length()+1, 0);
+    int tmp_port = htonl(login_server->port);
+    send(fd, &(tmp_port), sizeof(unsigned short), 0);
 
     static int server_id = 2;
     map<int, client_info*>::iterator it = unspec_request.find(fd);
     if (it == unspec_request.end()) {
         cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
     }
-    client_info* temp = new client_info(host_name, fd, htonl(port));
+    client_info* temp = new client_info(host_name, fd, port);
     temp->ID = server_id;
     server_id++;
     delete (it->second);
@@ -569,7 +584,9 @@ int main(void)
                             close(i);
                             FD_CLR(i, &fds);
                         }
-
+                        else if (iden == 2) {
+                            register_login_server(i);
+                        }
                         /* Other type of messages */
                         else {
                             cout << iden << endl;
