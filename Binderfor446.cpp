@@ -146,16 +146,16 @@ void log_server(int fd) {
         cerr << "FATAL ERROR: can not log a server" << endl;
         return;
     }
-    int port = 0;
+    unsigned short port = 0;
     nbytes = recv(fd, &port, sizeof(int), 0);
-    port = ntohl(port);
+    port = ntohs(port);
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a server" << endl;
         return;
     }
 
     send(fd, login_server->host_name.c_str(), login_server->host_name.length()+1, 0);
-    int tmp_port = htonl(login_server->port);
+    unsigned short tmp_port = htons(login_server->port);
     send(fd, &(tmp_port), sizeof(unsigned short), 0);
 
     static int server_id = 2;
@@ -230,7 +230,7 @@ int forward_request(int fd) {
         return -1;
     }
     send(fd, server->host_name.c_str(), server->host_name.length()+1, 0);
-    int tmp_port = htonl(server->port);
+    unsigned short tmp_port = htons(server->port);
     send(fd, &(tmp_port), sizeof(unsigned short), 0);
     return 0;
 }
@@ -385,7 +385,7 @@ int handle_msg(int fd, fd_set* server_fd, fd_set* fds) {
 void connection_info(struct sockaddr_in &client, int fd) {
     char* IP = inet_ntoa(client.sin_addr);
     client_info* temp = new client_info(IP);
-    temp->port = htonl(client.sin_port);
+    temp->port = htons(client.sin_port);
     temp->fd = fd;
     // temp->fd = fd;
     temp->num_room = 0;
@@ -429,7 +429,7 @@ int main(void)
     
     /* Initialize the address information */
     Server_addr.sin_family = AF_INET;   // Internet address domain
-    Server_addr.sin_port = htonl(0);    // Dynamically binding a port, it is necessary to convert this to network byte order
+    Server_addr.sin_port = htons(0);    // Dynamically binding a port, it is necessary to convert this to network byte order
     Server_addr.sin_addr.s_addr = INADDR_ANY;   // IP address of the host
     
     // memset(Server_addr.sin_zero, '\0', sizeof Server_addr);
@@ -458,7 +458,7 @@ int main(void)
     socklen_t len = sizeof(Server_addr);
     getsockname(sockfd, (struct sockaddr *)&Server_addr, &len);	
     cerr<< "BINDER_ADDRESS " << hostname <<endl;
-    cerr<< "BINDER_PORT " << htonl(Server_addr.sin_port) <<endl;
+    cerr<< "BINDER_PORT " << ntohs(Server_addr.sin_port) <<endl;
     
 
     /* The structure to store all the handles */
@@ -530,7 +530,7 @@ int main(void)
                     int iden;
                     int nbytes = recv(i,&iden,sizeof(int),0);
                     iden = ntohl(iden);
-
+                    cout << "what i receive is " << iden << endl;
                     /* Get nothing */
                     if (nbytes == 0) {
                         continue;
