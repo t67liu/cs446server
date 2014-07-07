@@ -1,0 +1,305 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <iostream>
+#include <cstdlib>
+#include <vector>
+#include "util.h"
+
+
+using namespace std;
+
+EXEC SQL INCLUDE SQLCA;
+
+// sql declare section
+EXEC SQL BEGIN DECLARE SECTION;
+    char user_name[16] ="";     //user name
+    char room_sql[16] = "";      //user room history
+    char user_email[16]= "";    //email_address also used as a primary key
+    char password[16]= "";      //user password
+    char email[16]= "";
+    char real_pass[16]= "";
+    char db[6] = "cs348";
+EXEC SQL END DECLARE SECTION;
+//end of declare section
+
+
+
+void send_msg(int sock, string s){
+    char buffer[256];
+    memcpy(&buffer,&s,sizeof(s));
+    buffer[strlen(buffer)] = '\n';
+    send(sock,buffer,sizeof(buffer),0);
+}
+
+
+
+//insert for signup() return true for success, return false for duplicate email
+
+bool sign_up(){
+    cerr<<"sign up for user : "<<user_email<<endl;
+
+    EXEC SQL SELECT email INTO :user_email
+    FROM user
+    WHERE email = :email;
+    if(SQLCODE == 0){           //user exist
+        return false;
+    }
+    else{
+        EXEC SQL INSERT INTO user(email,name,password) VALUES (:email,:user_name,:password);
+        cerr <<" client sign up successfully::"<<"    "<<email<< "   "<<user_name<<"     "<<password<<"         sqlcode"<<SQLCODE<<endl;
+    }
+
+
+    return true;
+}
+
+//log_in function return true if password is correct and user email exist, otherwise false
+bool log_in(){
+    cerr<<"log in for user : "<<user_email<<endl;
+
+    EXEC SQL SELECT email INTO :user_email
+    FROM user
+    WHERE email = :email;
+    if(SQLCODE == 0){           //user exist
+        EXEC SQL SELECT password INTO :real_pass
+        FROM user
+        WHERE email = :email;
+        if(real_pass == password) return true;
+    }
+    return false;
+}
+
+// change room history
+
+void room_his(int sock){
+    EXEC SQL SELECT roomhis INTO :room_sql
+    FROM user
+    WHERE email = :email;
+    if(SQLCODE == 0){               // there is a history
+        room_sql[strlen(room_sql)] = '\n';
+        send(sock,room_sql,sizeof(room_sql),0);
+
+    }
+    else{
+        send_msg( sock,"NO-HIS");
+    }
+}
+
+
+/* Server information */
+struct server_struct
+{
+	int 	socketfd_binder;
+    int     socketfd_client;
+	fd_set	total_fd_list;
+	char 	serv_NAME[256];
+	int 	serv_PORT;
+	bool    terminate;
+};
+
+/* Room information */
+class socket_room_info{
+public:    
+    int id;
+    char name[256];
+    char room[256];
+    bool dummy;
+};
+
+
+
+static struct server_struct servStruct;
+static vector<socket_room_info> info_vect;
+int glo_size = 0;
+
+
+
+void error(const char *msg)
+{
+    perror(msg);
+    exit(1);
+}
+
+int main(int argc, char* argv[]){
+    EXEC SQL CONNECT TO :db;
+
+
+    EXEC SQL INSERT INTO user(email,name,password) VALUES (3,4,5);
+    cerr<<"     starting the main, try insert: "<<SQLCODE<<endl;
+
+
+    socket_room_info dummy;
+    dummy.id = -1;
+    info_vect.resize(5,dummy);
+    glo_size = 5;
+
+
+    servStruct.terminate = false;
+
+	/* socketfd and portno is for client to connect  in this server , other servers are clients.
+		socketfd_binder is the socket connect to binder */
+	int socketfd, portno,socketfd_binder;
+	struct sockaddr_in serv_addr,serverInfo,client_addr;
+	struct hostent *server;
+
+	/* create the socket for client to connect*/
+	socketfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (socketfd < 0) 
+        error("ERROR opening socket");
+    bzero((char *) &serv_addr, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_port = htons(0);
+    if (bind(socketfd, (struct sockaddr *) &serv_addr,
+              sizeof(serv_addr)) < 0) 
+              error("ERROR on binding");
+    listen(socketfd,20);
+    socklen_t len = sizeof(serverInfo);
+    getsockname(socketfd, (struct sockaddr *)&serverInfo, &len);
+    gethostname(servStruct.serv_NAME,sizeof servStruct.serv_NAME);
+    servStruct.serv_PORT = ntohs(serverInfo.sin_port);
+    servStruct.socketfd_client = socketfd;
+    FD_SET(servStruct.socketfd_client, &(servStruct.total_fd_list));
+
+
+	/*set up connection to binder*/
+	socketfd_binder = socket(AF_INET, SOCK_STREAM, 0);
+    portno = atoi(argv[2]);
+    server = gethostbyname(argv[1]);
+    if (server == NULL) {
+        fprintf(stderr,"ERROR, no such host\n");
+        exit(0);
+    }
+   // cerr<<portno<<endl;
+    bzero((char *) &client_addr, sizeof(client_addr));
+    client_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, 
+         (char *)&client_addr.sin_addr.s_addr,
+         server->h_length);
+    client_addr.sin_port = htons(portno);
+
+    if (connect(socketfd_binder,(struct sockaddr *) &client_addr,sizeof(client_addr)) < 0) 
+        error("ERROR connecting");
+    servStruct.socketfd_binder = socketfd_binder;
+
+
+    int my_id = 2;
+ 	int my_net_id = htons(my_id);
+ 	/* send a 0 to binder, indicating this is a server */
+ 	send(socketfd_binder, &my_net_id, 4, 0);
+
+
+ 	/* send this server's port and address */
+ 	send(socketfd_binder, servStruct.serv_NAME, 256, 0); 
+    cerr<<" my port    : "<<servStruct.serv_PORT<<endl;
+ 	my_id = servStruct.serv_PORT;
+ 	my_net_id	= htons(my_id);
+ 	send(socketfd_binder, &my_net_id, 4, 0);
+
+ 	/*now constant listen to clients*/
+
+    fd_set master, fdlist;
+    socklen_t cli_len;
+    int lastfd, newsockfd;
+    struct sockaddr_in cli_addr;
+
+    FD_SET(servStruct.socketfd_client, &master);
+    FD_SET(servStruct.socketfd_binder, &master);
+    lastfd = servStruct.socketfd_binder;
+
+    char message[256]= "";
+    printf("accepting client\n");
+    while (true){
+        cerr<<"main is running"<<endl;
+        if (servStruct.terminate) {
+            break;
+        }
+        
+        fdlist = master;
+        if (select(lastfd + 1, &fdlist, NULL, NULL, NULL) < 0) { // get list of read sockets
+            perror("Server: select");
+            exit(-1);
+        }
+
+        //loop through all sockets
+        for (int i = 0; i <= lastfd; i++) {
+            if (FD_ISSET (i, &fdlist)){ // new connection
+                cerr<<"incoming is in fd list"<<endl;
+                if (i == servStruct.socketfd_client) {
+                    cerr<<"incoming socket first try"<<endl;
+                    cli_len = sizeof(cli_addr);
+                    newsockfd = accept(servStruct.socketfd_client, (struct sockaddr *) &cli_addr, &cli_len);
+                    if (newsockfd < 0) {
+                        perror("Server: accept");
+                        break;
+                    }
+                    FD_SET(newsockfd, &master);
+                    if (newsockfd > lastfd) {
+                        lastfd = newsockfd;
+                    }
+                }
+                else if (i == servStruct.socketfd_binder) { /* message from binder to terminate all servers */
+                    cerr<<"recv from binder"<<endl;   
+                    recv(i, message, 256, 0);
+                    cout<<"         message:"<<message<<endl;
+                    if(strlen(message) == 0){
+                        servStruct.terminate = true;
+                        break;
+                    }
+                    if(message[0] == 'T'){
+                        servStruct.terminate = true;
+                        goto L;
+                    }
+                    else if(message[0] == 'S'){
+                        recv(i, email, 256, 0);
+                        cout<<"         email: "<<email<<endl;
+                        recv(i, password, 256, 0);
+                        cout<<"         password: "<<password<<endl;
+                        recv(i, user_name, 256, 0);
+                        cout<<"         user_name: "<<user_name<<endl;
+                        if(sign_up()){
+                            send_msg(i,"success");
+                        }
+                        else{
+                            send_msg(i,"failure");
+                        }
+                    }
+                    else if(message[0] == 'L'){
+                        recv(i, email, 256, 0);
+                        recv(i, password, 256, 0);
+                        if(log_in()){
+                            send_msg(i,"success");
+                        }
+                        else{
+                            send_msg(i,"failure");
+                        }
+                    }
+                }
+                else {
+                    cerr<<"unknown income socket"<<endl;          
+                }
+            }
+        }
+    }
+    L:
+    close(newsockfd);
+    close(servStruct.socketfd_binder);
+    close(servStruct.socketfd_client);
+
+
+
+    EXEC SQL COMMIT;
+    EXEC SQL CONNECT RESET;
+    return 0;
+ 	
+  }
