@@ -17,6 +17,112 @@ using namespace std;
 static vector<client_info*> server_info;
 static vector<room_location*> room_list;
 static map<int, client_info*> unspec_request;   // key is the file handler, value is the info
+static client_info* login_server;
+
+void registr_login_server(int fd) {
+        /* Get the server information */
+    char host_name[256];
+    memset(host_name, 0, 256);
+    int nbytes = recv(fd, host_name, 256 ,0);
+    string str(host_name);
+    if (nbytes <= 0) {
+        cerr << "FATAL ERROR: can not log a server" << endl;
+        return;
+    }
+    int port = 0;
+    nbytes = recv(fd, &port, sizeof(int), 0);
+    port = htonl(port);
+    if (nbytes <=0) {
+        cerr << "FATAL ERROR: can not log a server" << endl;
+        return;
+    }
+
+    map<int, client_info*>::iterator it = unspec_request.find(fd);
+    if (it == unspec_request.end()) {
+        cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
+    }
+    login_server = new client_info(host_name, fd, htonl(port));
+    login_server->ID = 1;
+    delete (it->second);
+    unspec_request.erase(it);
+}
+
+/* Ask login server for checking the user's account */
+int check_info (int fd) {
+    char user_name[30];
+    memset(user_name, 0, 30);
+    int nbytes = recv(fd, user_name, 30 ,0);
+    if (nbytes <= 0) {
+        cerr << "FATAL ERROR: can not log a user" << endl;
+        return 1;
+    }
+    int password[16];
+    memset(password, 0, 64);
+    nbytes = recv(fd, password, 64, 0);
+    if (nbytes <=0) {
+        cerr << "FATAL ERROR: can not log a user" << endl;
+        return 1;
+    }
+    char check_type[7] = {'S','I','G','N','U','P','\0'};
+    send(login_server->fd, check_type, 7, 0);
+    send(login_server->fd, user_name, 30, 0);
+    send(login_server->fd, password, 16, 0);
+    char check_result[8];
+    memset(check_result, 0, 16);
+    nbytes = recv(login_server->fd, check_result, 8, 0);
+    if (nbytes <=0) {
+        cerr << "FATAL ERROR: can not log a user" << endl;
+        return 1;
+    }
+    if (check_result[0] = 's') {
+        return 0;
+    }
+    else {
+        return 1;
+    }
+}
+
+int register_info(int fd) {
+    char user_name[30];
+    memset(user_name, 0, 30);
+    int nbytes = recv(fd, user_name, 30 ,0);
+    if (nbytes <= 0) {
+        cerr << "FATAL ERROR: can not log a user" << endl;
+        return 1;
+    }
+    int password[16];
+    memset(password, 0, 64);
+    nbytes = recv(fd, &password, 64, 0);
+    if (nbytes <=0) {
+        cerr << "FATAL ERROR: can not log a user" << endl;
+        return 1;
+    }
+    char name[20];
+    memset(name, 0, 20);
+    nbytes = recv(fd, &name, 20, 0);
+    if (nbytes <=0) {
+        cerr << "FATAL ERROR: can not log a user" << endl;
+        return 1;
+    }
+    char check_type[7] = {'S','I','G','N','I','N','\0'};
+    send(login_server->fd, check_type, 7, 0);
+    send(login_server->fd, user_name, 30, 0);
+    send(login_server->fd, password, 64, 0);
+    send(login_server->fd, name, 20, 0);
+    char check_result[8];
+    memset(check_result, 0, 16);
+    nbytes = recv(login_server->fd, check_result, 8, 0);
+    if (nbytes <=0) {
+        cerr << "FATAL ERROR: can not log a user" << endl;
+        return 1;
+    }
+    if (check_result[0] = 's') {
+        return 0;
+    }
+    else {
+        return 1;
+    }
+}
 
 /* The first time we receive a message from a server */
 void log_server(int fd) {
@@ -31,18 +137,18 @@ void log_server(int fd) {
     }
     int port = 0;
     nbytes = recv(fd, &port, sizeof(int), 0);
-    port = ntohs(port);
+    port = htonl(port);
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a server" << endl;
         return;
     }
 
-    static int server_id = 1;
+    static int server_id = 2;
     map<int, client_info*>::iterator it = unspec_request.find(fd);
     if (it == unspec_request.end()) {
         cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
     }
-    client_info* temp = new client_info(host_name, fd, ntohs(port));
+    client_info* temp = new client_info(host_name, fd, htonl(port));
     temp->ID = server_id;
     server_id++;
     delete (it->second);
@@ -264,7 +370,7 @@ int handle_msg(int fd, fd_set* server_fd, fd_set* fds) {
 void connection_info(struct sockaddr_in &client, int fd) {
     char* IP = inet_ntoa(client.sin_addr);
     client_info* temp = new client_info(IP);
-    temp->port = ntohs(client.sin_port);
+    temp->port = htonl(client.sin_port);
     temp->fd = fd;
     // temp->fd = fd;
     temp->num_room = 0;
@@ -337,7 +443,7 @@ int main(void)
     socklen_t len = sizeof(Server_addr);
     getsockname(sockfd, (struct sockaddr *)&Server_addr, &len);	
     cerr<< "BINDER_ADDRESS " << hostname <<endl;
-    cerr<< "BINDER_PORT " << ntohs(Server_addr.sin_port) <<endl;
+    cerr<< "BINDER_PORT " << htonl(Server_addr.sin_port) <<endl;
     
 
     /* The structure to store all the handles */
@@ -432,6 +538,28 @@ int main(void)
                         /* If this is a client */
                         else if (iden == 1) {
                             cout << "Get request from client" << endl;
+                            char login_type[10];
+                            memset(login_type,0,10);
+                            nbytes = recv(i, &login_type,10,0);
+                            string type(login_type);
+                            if (type.compare("FACEBOOK") == 0) {
+                                cout << "FaceBook Login" << endl;
+                            }
+                            else if (type.compare("SIGN_IN") == 0) {
+                                cout << "Database Login" << endl;
+                                int check_result = check_info(i);
+                                if (check_result) continue;
+                            }
+                            else if (type.compare("SIGN_UP") == 0) {
+                                cout << "Database Sign up" << endl;
+                                int check_result = register_info(i);
+                                if (check_result) continue;
+                            }
+                            else {
+                                cout << "ERROR type of command received from the Client" << endl;
+                                continue;
+                            }
+
                             /* Allocate the corresponding server to the client */
                             forward_request(i);
                             map<int, client_info*>::iterator it = unspec_request.find(i);
