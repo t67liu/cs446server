@@ -20,7 +20,7 @@ typedef struct client_info {
     int ID;
     int fd;
     string host_name;
-    unsigned short port;
+    unsigned int port;
     unsigned int num_room;
     unsigned int room_in_charge;
     client_info(char* IP, int temp_fd, int temp_port) {

@@ -29,9 +29,9 @@ void register_login_server(int fd) {
         cerr << "FATAL ERROR: can not log the login server" << endl;
         return;
     }
-    int port = 0;
-    nbytes = recv(fd, &port, sizeof(int), 0);
-    port = htonl(port);
+    unsigned int port = 0;
+    nbytes = recv(fd, &port, sizeof(unsigned int), 0);
+    port = ntohs(port);
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log the login server" << endl;
         return;
@@ -41,10 +41,13 @@ void register_login_server(int fd) {
     if (it == unspec_request.end()) {
         cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
     }
-    login_server = new client_info(host_name, fd, htonl(port));
+    login_server = new client_info(host_name, fd, port);
     login_server->ID = 1;
     delete (it->second);
     unspec_request.erase(it);
+
+    string host_name1(host_name);
+    cout << "the log in server is " << host_name1 << " " << port << endl;
 }
 
 /* Ask login server for checking the user's account */
@@ -126,28 +129,30 @@ int register_info(int fd) {
 
 /* The first time we receive a message from a server */
 void log_server(int fd) {
-    if (login_server == NULL) {
-        close(fd);
-        map<int, client_info*>::iterator it = unspec_request.find(fd);
-        if (it == unspec_request.end()) {
-            cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
-            return;
-        }
-        delete (it->second);
-        unspec_request.erase(it);
-        return;
-    }
+    // if (login_server == NULL) {
+    //     close(fd);
+    //     map<int, client_info*>::iterator it = unspec_request.find(fd);
+    //     if (it == unspec_request.end()) {
+    //         cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
+    //         return;
+    //     }
+    //     delete (it->second);
+    //     unspec_request.erase(it);
+    //     return;
+    // }
     /* Get the server information */
     char host_name[256];
     memset(host_name, 0, 256);
-    int nbytes = recv(fd, host_name, 256 ,0);
+    int nbytes = recv(fd, host_name, 4 ,0);
     string str(host_name);
+        cout << "the log in server is " << host_name << " lllll " << nbytes << endl;
+
     if (nbytes <= 0) {
         cerr << "FATAL ERROR: can not log a server" << endl;
         return;
     }
     unsigned short port = 0;
-    nbytes = recv(fd, &port, sizeof(int), 0);
+    nbytes = recv(fd, &port, sizeof(unsigned short), 0);
     port = ntohs(port);
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a server" << endl;
@@ -528,7 +533,7 @@ int main(void)
 
                     /* Shake hand */
                     int iden;
-                    int nbytes = recv(i,&iden,sizeof(int),0);
+                    int nbytes = recv(i,&iden,4,0);
                     iden = ntohl(iden);
                     cout << "what i receive is " << iden << endl;
                     /* Get nothing */
