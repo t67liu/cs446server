@@ -22,22 +22,25 @@ EXEC SQL INCLUDE SQLCA;
 
 // sql declare section
 EXEC SQL BEGIN DECLARE SECTION;
-    char user_name[16] ="";     //user name
+    char user_name[16] ="NULL";     //user name
     char room_sql[16] = "";      //user room history
     char user_email[16]= "";    //email_address also used as a primary key
     char password[16]= "";      //user password
     char email[16]= "";
     char real_pass[16]= "";
     char db[6] = "cs348";
+    char tmp1[16] = "123";
+    char tmp2[16] = "456";
+    char tmp3[16] = "789";
 EXEC SQL END DECLARE SECTION;
 //end of declare section
 
 
 
 void send_msg(int sock, string s){
-    char buffer[256];
-    memcpy(&buffer,&s,sizeof(s));
-    buffer[strlen(buffer)] = '\n';
+    char buffer[s.length()+1];
+    strcpy(buffer,s.c_str());
+    cout<<"         buffer:"<<buffer<<endl;
     send(sock,buffer,sizeof(buffer),0);
 }
 
@@ -57,6 +60,7 @@ bool sign_up(){
     else{
         EXEC SQL INSERT INTO user(email,name,password) VALUES (:email,:user_name,:password);
         cerr <<" client sign up successfully::"<<"    "<<email<< "   "<<user_name<<"     "<<password<<"         sqlcode"<<SQLCODE<<endl;
+        EXEC SQL COMMIT;
     }
 
 
@@ -64,17 +68,24 @@ bool sign_up(){
 }
 
 //log_in function return true if password is correct and user email exist, otherwise false
-bool log_in(){
-    cerr<<"log in for user : "<<user_email<<endl;
+bool log_in(int pass_length){
+    cerr<<"log in for user : "<<email<<endl;
 
     EXEC SQL SELECT email INTO :user_email
     FROM user
     WHERE email = :email;
+    cout<<"     log_in sqlcode: "<<SQLCODE<<endl;
     if(SQLCODE == 0){           //user exist
         EXEC SQL SELECT password INTO :real_pass
         FROM user
         WHERE email = :email;
-        if(real_pass == password) return true;
+        cout<<"     log_in password:    "<<real_pass<<endl;
+        cout<<"      log_in sqlcode:    "<<SQLCODE<<endl;
+
+        for(int i = 0; i < pass_length;i++){
+            if(real_pass[i] != password[i]) return false;
+        }
+        return true;
     }
     return false;
 }
@@ -107,22 +118,11 @@ struct server_struct
 	bool    terminate;
 };
 
-/* Room information */
-class socket_room_info{
-public:    
-    int id;
-    char name[256];
-    char room[256];
-    bool dummy;
-};
+
 
 
 
 static struct server_struct servStruct;
-static vector<socket_room_info> info_vect;
-int glo_size = 0;
-
-
 
 void error(const char *msg)
 {
@@ -132,16 +132,6 @@ void error(const char *msg)
 
 int main(int argc, char* argv[]){
     EXEC SQL CONNECT TO :db;
-
-
-    EXEC SQL INSERT INTO user(email,name,password) VALUES (3,4,5);
-    cerr<<"     starting the main, try insert: "<<SQLCODE<<endl;
-
-
-    socket_room_info dummy;
-    dummy.id = -1;
-    info_vect.resize(5,dummy);
-    glo_size = 5;
 
 
     servStruct.terminate = false;
@@ -194,17 +184,18 @@ int main(int argc, char* argv[]){
 
 
     int my_id = 2;
- 	int my_net_id = htons(my_id);
+ 	int my_net_id = htonl(my_id);
  	/* send a 0 to binder, indicating this is a server */
  	send(socketfd_binder, &my_net_id, 4, 0);
 
 
  	/* send this server's port and address */
+    cout<<"     hos name:    "<<servStruct.serv_NAME<<endl;
  	send(socketfd_binder, servStruct.serv_NAME, 256, 0); 
     cerr<<" my port    : "<<servStruct.serv_PORT<<endl;
  	my_id = servStruct.serv_PORT;
  	my_net_id	= htons(my_id);
- 	send(socketfd_binder, &my_net_id, 4, 0);
+ 	send(socketfd_binder, &my_net_id, 2, 0);
 
  	/*now constant listen to clients*/
 
@@ -249,8 +240,9 @@ int main(int argc, char* argv[]){
                     }
                 }
                 else if (i == servStruct.socketfd_binder) { /* message from binder to terminate all servers */
-                    cerr<<"recv from binder"<<endl;   
-                    recv(i, message, 256, 0);
+                    cerr<<"recv from binder"<<endl;
+                    int tmp_size = 0;  
+                    recv(i, message, 7, 0);
                     cout<<"         message:"<<message<<endl;
                     if(strlen(message) == 0){
                         servStruct.terminate = true;
@@ -260,33 +252,56 @@ int main(int argc, char* argv[]){
                         servStruct.terminate = true;
                         goto L;
                     }
-                    else if(message[0] == 'S'){
-                        recv(i, email, 256, 0);
+                    else if(message[4] == 'U'){
+                        recv(i,&tmp_size,4,0);
+                        tmp_size = ntohl(tmp_size); 
+                        recv(i, email, tmp_size, 0);
                         cout<<"         email: "<<email<<endl;
-                        recv(i, password, 256, 0);
+                        recv(i,&tmp_size,4,0);
+                        tmp_size = ntohl(tmp_size); 
+                        recv(i, password, tmp_size, 0);
                         cout<<"         password: "<<password<<endl;
-                        recv(i, user_name, 256, 0);
-                        cout<<"         user_name: "<<user_name<<endl;
+                     //   recv(i,&tmp_size,4,0);
+                     //   tmp_size = ntohl(tmp_size); 
+                     //   recv(i, user_name, tmp_size, 0);
+                     //   cout<<"         user_name: "<<user_name<<endl;
                         if(sign_up()){
+                            cout<<"         sign UP succ"<<endl;
                             send_msg(i,"success");
                         }
                         else{
+                            cout<<"         sign up fail"<<endl;
                             send_msg(i,"failure");
                         }
+                        memset(&email,0,sizeof(email));
+                        memset(&password,0,sizeof(password));   
                     }
-                    else if(message[0] == 'L'){
-                        recv(i, email, 256, 0);
-                        recv(i, password, 256, 0);
-                        if(log_in()){
+                    else if(message[4] == 'I'){
+                        recv(i,&tmp_size,4,0);
+                        tmp_size = ntohl(tmp_size); 
+                        cout<<"     email recv size:    "<<tmp_size<<endl;
+                        recv(i, email, tmp_size, 0);
+                        cout<<"         email: "<<email<<endl;
+                        cout<<"     password recv size:    "<<tmp_size<<endl;
+                        recv(i,&tmp_size,4,0);
+                        tmp_size = ntohl(tmp_size); 
+                        recv(i, password, tmp_size, 0);
+                        cout<<"         password: "<<password<<endl;
+                        if(log_in(tmp_size - 1)){
+                            cout<<"     sign in succ"<<endl;
                             send_msg(i,"success");
                         }
                         else{
+                            cout<<"     sign in fail"<<endl;
                             send_msg(i,"failure");
                         }
+                        memset(&email,0,sizeof(email));
+                        memset(&password,0,sizeof(password)); 
+                        memset(&user_name,0,sizeof(user_name));  
                     }
                 }
                 else {
-                    cerr<<"unknown income socket"<<endl;          
+                    cerr<<"server income socket, need to be handle"<<endl;          
                 }
             }
         }
