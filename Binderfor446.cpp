@@ -29,9 +29,9 @@ void register_login_server(int fd) {
         cerr << "FATAL ERROR: can not log the login server" << endl;
         return;
     }
-    int port = 0;
-    nbytes = recv(fd, &port, sizeof(int), 0);
-    port = htonl(port);
+    unsigned int port = 0;
+    nbytes = recv(fd, &port, sizeof(unsigned int), 0);
+    port = ntohs(port);
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log the login server" << endl;
         return;
@@ -41,40 +41,66 @@ void register_login_server(int fd) {
     if (it == unspec_request.end()) {
         cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
     }
-    login_server = new client_info(host_name, fd, htonl(port));
+    login_server = new client_info(host_name, fd, port);
     login_server->ID = 1;
     delete (it->second);
     unspec_request.erase(it);
+
+    string host_name1(host_name);
+    cout << "the log in server is " << host_name1 << " " << port << endl;
 }
 
 /* Ask login server for checking the user's account */
 int check_info (int fd) {
-    char user_name[30];
-    memset(user_name, 0, 30);
-    int nbytes = recv(fd, user_name, 30 ,0);
+    if (login_server == NULL) {
+        map<int, client_info*>::iterator it = unspec_request.find(fd);
+        if (it == unspec_request.end()) {
+            cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
+        }
+        delete (it->second);
+        unspec_request.erase(it);
+        return 3;
+    }
+    int size;
+    int nbytes = recv(fd, &size,4,0);    
+    size = ntohl(size);
+    char user_name[size];
+    memset(user_name, 0, size);
+    nbytes = recv(fd, user_name, size ,0);
     if (nbytes <= 0) {
-        cerr << "FATAL ERROR: can not log a user" << endl;
+        cout << "FATAL ERROR: can not log a user" << endl;
         return 1;
     }
-    int password[16];
-    memset(password, 0, 64);
-    nbytes = recv(fd, password, 64, 0);
+    int size1;    
+    nbytes = recv(fd, &size1, sizeof(int) ,0);
+    size1 = ntohl(size1);
+
+    char password[size1];
+    memset(password, 0, size1);
+        cout << "i am here" << endl;
+
+    nbytes = recv(fd, password, size1, 0);
     if (nbytes <=0) {
-        cerr << "FATAL ERROR: can not log a user" << endl;
+        cout << "FATAL ERROR: can not log a user" << endl;
         return 1;
     }
-    char check_type[7] = {'S','I','G','N','U','P','\0'};
+    int size_n = htonl(size);
+    int size1_n= htonl(size1);
+    char check_type[7] = {'S','I','G','N','I','N','\0'};
     send(login_server->fd, check_type, 7, 0);
-    send(login_server->fd, user_name, 30, 0);
-    send(login_server->fd, password, 16, 0);
+    send(login_server->fd, &size_n, 4, 0);
+    send(login_server->fd, user_name, size, 0);
+    send(login_server->fd, &size1_n, 4, 0);
+    send(login_server->fd, password, size1, 0);
     char check_result[8];
-    memset(check_result, 0, 16);
+    memset(check_result, 0, 8);
     nbytes = recv(login_server->fd, check_result, 8, 0);
+    cout<<"             check_result:   "<<check_result<<endl;
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a user" << endl;
         return 1;
     }
-    if (check_result[0] = 's') {
+    if (check_result[0] == 's') {
         return 0;
     }
     else {
@@ -83,40 +109,55 @@ int check_info (int fd) {
 }
 
 int register_info(int fd) {
-    char user_name[30];
-    memset(user_name, 0, 30);
-    int nbytes = recv(fd, user_name, 30 ,0);
+    if (login_server == NULL) {
+        map<int, client_info*>::iterator it = unspec_request.find(fd);
+        if (it == unspec_request.end()) {
+            cerr << "FATAL ERROR: no cerrsponding file handler" << endl;
+        }
+        delete (it->second);
+        unspec_request.erase(it);
+        return 3;
+    }
+    int size;
+    int nbytes = recv(fd, &size,4,0);    
+    size = ntohl(size);
+    char user_name[size];
+    memset(user_name, 0, size);
+    nbytes = recv(fd, user_name, size ,0);
     if (nbytes <= 0) {
-        cerr << "FATAL ERROR: can not log a user" << endl;
+        cout << "FATAL ERROR: can not log a user" << endl;
         return 1;
     }
-    int password[16];
-    memset(password, 0, 64);
-    nbytes = recv(fd, &password, 64, 0);
+    int size1;    
+    nbytes = recv(fd, &size1, sizeof(int) ,0);
+    size1 = ntohl(size1);
+
+    char password[size1];
+    memset(password, 0, size1);
+        cout << "i am here" << endl;
+
+    nbytes = recv(fd, password, size1, 0);
     if (nbytes <=0) {
-        cerr << "FATAL ERROR: can not log a user" << endl;
+        cout << "FATAL ERROR: can not log a user" << endl;
         return 1;
     }
-    char name[20];
-    memset(name, 0, 20);
-    nbytes = recv(fd, &name, 20, 0);
-    if (nbytes <=0) {
-        cerr << "FATAL ERROR: can not log a user" << endl;
-        return 1;
-    }
-    char check_type[7] = {'S','I','G','N','I','N','\0'};
+    int size_n = htonl(size);
+    int size1_n= htonl(size1);
+
+    char check_type[7] = {'S','I','G','N','U','P','\0'};
     send(login_server->fd, check_type, 7, 0);
-    send(login_server->fd, user_name, 30, 0);
-    send(login_server->fd, password, 64, 0);
-    send(login_server->fd, name, 20, 0);
+    send(login_server->fd, &size_n, 4, 0);
+    send(login_server->fd, user_name, size, 0);
+    send(login_server->fd, &size1_n, 4, 0);
+    send(login_server->fd, password, size1, 0);
     char check_result[8];
-    memset(check_result, 0, 16);
+    memset(check_result, 0, 8);
     nbytes = recv(login_server->fd, check_result, 8, 0);
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a user" << endl;
         return 1;
     }
-    if (check_result[0] = 's') {
+    if (check_result[0] == 's') {
         return 0;
     }
     else {
@@ -142,20 +183,22 @@ void log_server(int fd) {
     memset(host_name, 0, 256);
     int nbytes = recv(fd, host_name, 256 ,0);
     string str(host_name);
+        cout << "the log in server is " << host_name << " lllll " << nbytes << endl;
+
     if (nbytes <= 0) {
         cerr << "FATAL ERROR: can not log a server" << endl;
         return;
     }
-    int port = 0;
-    nbytes = recv(fd, &port, sizeof(int), 0);
-    port = ntohl(port);
+    unsigned short port = 0;
+    nbytes = recv(fd, &port, sizeof(unsigned short), 0);
+    port = ntohs(port);
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a server" << endl;
         return;
     }
 
     send(fd, login_server->host_name.c_str(), login_server->host_name.length()+1, 0);
-    int tmp_port = htonl(login_server->port);
+    unsigned short tmp_port = htons(login_server->port);
     send(fd, &(tmp_port), sizeof(unsigned short), 0);
 
     static int server_id = 2;
@@ -230,7 +273,7 @@ int forward_request(int fd) {
         return -1;
     }
     send(fd, server->host_name.c_str(), server->host_name.length()+1, 0);
-    int tmp_port = htonl(server->port);
+    unsigned short tmp_port = htons(server->port);
     send(fd, &(tmp_port), sizeof(unsigned short), 0);
     return 0;
 }
@@ -385,7 +428,7 @@ int handle_msg(int fd, fd_set* server_fd, fd_set* fds) {
 void connection_info(struct sockaddr_in &client, int fd) {
     char* IP = inet_ntoa(client.sin_addr);
     client_info* temp = new client_info(IP);
-    temp->port = htonl(client.sin_port);
+    temp->port = htons(client.sin_port);
     temp->fd = fd;
     // temp->fd = fd;
     temp->num_room = 0;
@@ -429,7 +472,7 @@ int main(void)
     
     /* Initialize the address information */
     Server_addr.sin_family = AF_INET;   // Internet address domain
-    Server_addr.sin_port = htonl(0);    // Dynamically binding a port, it is necessary to convert this to network byte order
+    Server_addr.sin_port = htons(0);    // Dynamically binding a port, it is necessary to convert this to network byte order
     Server_addr.sin_addr.s_addr = INADDR_ANY;   // IP address of the host
     
     // memset(Server_addr.sin_zero, '\0', sizeof Server_addr);
@@ -458,7 +501,7 @@ int main(void)
     socklen_t len = sizeof(Server_addr);
     getsockname(sockfd, (struct sockaddr *)&Server_addr, &len);	
     cerr<< "BINDER_ADDRESS " << hostname <<endl;
-    cerr<< "BINDER_PORT " << htonl(Server_addr.sin_port) <<endl;
+    cerr<< "BINDER_PORT " << ntohs(Server_addr.sin_port) <<endl;
     
 
     /* The structure to store all the handles */
@@ -528,9 +571,9 @@ int main(void)
 
                     /* Shake hand */
                     int iden;
-                    int nbytes = recv(i,&iden,sizeof(int),0);
+                    int nbytes = recv(i,&iden,4,0);
                     iden = ntohl(iden);
-
+                    cout << "what i receive is " << iden << endl;
                     /* Get nothing */
                     if (nbytes == 0) {
                         continue;
@@ -553,25 +596,53 @@ int main(void)
                         /* If this is a client */
                         else if (iden == 1) {
                             cout << "Get request from client" << endl;
-                            char login_type[10];
-                            memset(login_type,0,10);
-                            nbytes = recv(i, &login_type,10,0);
+                            char login_type[9];
+                            memset(login_type,0,9);
+                            nbytes = recv(i, &login_type,8,0);
+                            cout << nbytes << "nbytes" << endl;
+                            login_type[8] = '\0';
                             string type(login_type);
                             if (type.compare("FACEBOOK") == 0) {
                                 cout << "FaceBook Login" << endl;
                             }
-                            else if (type.compare("SIGN_IN") == 0) {
+                            else if (type.compare("SIGN_INN") == 0) {
                                 cout << "Database Login" << endl;
                                 int check_result = check_info(i);
-                                if (check_result) continue;
+                                if (check_result == 1) {
+                                    char msg[2] = {'F','\n'};
+                                    send(i, msg, sizeof(msg), 0);
+                                    continue;
+                                }
+                                if (check_result == 3) {
+                                    char msg = 'N';
+                                    send(i, &msg, 1, 0);
+                                    close(i);
+                                    FD_CLR(i, &fds);
+                                    continue;
+                                }
+                                char msg[2] = {'S','\n'};
+                                send(i, msg, sizeof(msg), 0);
                             }
-                            else if (type.compare("SIGN_UP") == 0) {
+                            else if (type.compare("SIGN_UPP") == 0) {
                                 cout << "Database Sign up" << endl;
                                 int check_result = register_info(i);
-                                if (check_result) continue;
+                                if (check_result == 1) {
+                                    char msg[2] = {'F','\n'};
+                                    send(i, msg, sizeof(msg), 0);
+                                    continue;
+                                }
+                                if (check_result == 3) {
+                                    char msg = 'N';
+                                    send(i, &msg, 1, 0);
+                                    close(i);
+                                    FD_CLR(i, &fds);
+                                    continue;
+                                }
+                                char msg[2] = {'S','\n'};
+                                send(i, msg, sizeof(msg), 0);
                             }
                             else {
-                                cout << "ERROR type of command received from the Client" << endl;
+                                cout << "ERROR type of command received from the Client " << type << endl;
                                 continue;
                             }
 
