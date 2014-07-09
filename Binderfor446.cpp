@@ -95,11 +95,12 @@ int check_info (int fd) {
     char check_result[8];
     memset(check_result, 0, 8);
     nbytes = recv(login_server->fd, check_result, 8, 0);
+    cout<<"             check_result:   "<<check_result<<endl;
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a user" << endl;
         return 1;
     }
-    if (check_result[0] = 's') {
+    if (check_result[0] == 's') {
         return 0;
     }
     else {
@@ -156,7 +157,7 @@ int register_info(int fd) {
         cerr << "FATAL ERROR: can not log a user" << endl;
         return 1;
     }
-    if (check_result[0] = 's') {
+    if (check_result[0] == 's') {
         return 0;
     }
     else {
@@ -608,8 +609,8 @@ int main(void)
                                 cout << "Database Login" << endl;
                                 int check_result = check_info(i);
                                 if (check_result == 1) {
-                                    char msg = 'F';
-                                    send(i, &msg, 1, 0);
+                                    char msg[2] = {'F','\n'};
+                                    send(i, msg, sizeof(msg), 0);
                                     continue;
                                 }
                                 if (check_result == 3) {
@@ -619,13 +620,26 @@ int main(void)
                                     FD_CLR(i, &fds);
                                     continue;
                                 }
-                                char msg = 'S';
-                                send(i, &msg, 1, 0);
+                                char msg[2] = {'S','\n'};
+                                send(i, msg, sizeof(msg), 0);
                             }
                             else if (type.compare("SIGN_UPP") == 0) {
                                 cout << "Database Sign up" << endl;
                                 int check_result = register_info(i);
-                                if (check_result) continue;
+                                if (check_result == 1) {
+                                    char msg[2] = {'F','\n'};
+                                    send(i, msg, sizeof(msg), 0);
+                                    continue;
+                                }
+                                if (check_result == 3) {
+                                    char msg = 'N';
+                                    send(i, &msg, 1, 0);
+                                    close(i);
+                                    FD_CLR(i, &fds);
+                                    continue;
+                                }
+                                char msg[2] = {'S','\n'};
+                                send(i, msg, sizeof(msg), 0);
                             }
                             else {
                                 cout << "ERROR type of command received from the Client " << type << endl;
