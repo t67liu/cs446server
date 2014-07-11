@@ -38,7 +38,7 @@ void send_msg(int sock, string s){
     char buffer[s.length()+1];
     strcpy(buffer,s.c_str());
     cout<<"         buffer:"<<buffer<<endl;
-    send(sock,buffer,sizeof(buffer),0);
+    send(sock,buffer,4,0);
 }
 
 
@@ -114,12 +114,14 @@ void * handle_in(void *arg){
                 cin>>tmp;
                 int my_id = 2;
                 if(tmp == "MC") my_id = 1;
-                int my_net_id = htons(my_id);
+                cout<<"       my_id!!!!!: "<<my_id<<endl;
+                int my_net_id = htonl(my_id);
                 cin >> tmp;
-                memcpy(&buffer,&tmp,sizeof(tmp));
+                cout<<"         my_net_id:  "<<my_net_id<<endl;
                 /* send this server's port and address */
-                send(servStruct.socketfd_binder, buffer,sizeof(buffer), 0); 
-                send(servStruct.socketfd_binder, &my_net_id, 1, 0);
+                send_msg(servStruct.socketfd_binder,tmp);
+                send(servStruct.socketfd_binder, &my_net_id, 4, 0);
+
 
             }
             else if(tmp == "shutdown"){
@@ -188,7 +190,7 @@ void *handle_connect(void *arg){
                 }
                 else if (i == servStruct.socketfd_binder) { /* message from binder to terminate all servers */
                     cerr<<"recv from binder"<<endl;   
-                    recv(i, message, 256, 0);
+                    recv(i, message, 1, 0);
                     if(strlen(message) == 0){
                         servStruct.terminate = true;
                         break;
@@ -198,12 +200,14 @@ void *handle_connect(void *arg){
                         goto L;
                     }
                     else{
+                        cout<<"         roominfo:   "<<message<<endl;
                         char room[256];
                         int building;
-                        recv(i,room , 256, 0);
+                        recv(i,room , 4, 0);
                         recv(i,&building,4,0);
-                        cout<<" room_info"<<ntohs(building)<<" "<<room<<endl;
+                        cout<<" room_info: "<<ntohl(building)<<" "<<room<<endl;
                     }
+                    memset(&message,0,sizeof(message));
                 }
                 else {
                     cerr<<"recv from client :   "<<i<<  "           vector size :"<<info_vect.size()<<endl;
@@ -339,13 +343,13 @@ int main(int argc, char* argv[]){
     cout<<"         host name "<< servStruct.serv_NAME <<"LALALALA" << sizeof(servStruct.serv_NAME) << endl;
  	send(socketfd_binder, servStruct.serv_NAME, 256, 0); 
     cerr<<" my port    : "<<servStruct.serv_PORT<<endl;
- 	my_id = servStruct.serv_PORT;
- 	my_net_id	= htons(my_id);
- 	send(socketfd_binder, &my_net_id, 2, 0);
+ 	unsigned short portR = servStruct.serv_PORT;
+ 	portR = htons(portR);
+ 	send(socketfd_binder, &portR, sizeof(unsigned short), 0);
 
     char tmp_log[256] = "";
     recv(socketfd_binder,tmp_log,256,0);
-    recv(socketfd_binder,&my_id,2,0);
+    recv(socketfd_binder,&my_id,sizeof(unsigned short),0);
     my_id =(int) ntohs(my_id);
     cout<<" recieving from binder for log_server info    "<<tmp_log<<"      "<<my_id<<endl;
 
