@@ -1,0 +1,29 @@
+open 2 terminals
+
+in each terminal
+
+run:
+db2 -f check
+
+if there is a machine without a user table in DB, run:
+db2 -f db
+else dont do any shit
+
+then in any terminal run:
+make
+
+make sure to sqc compiled correct
+
+then in host1
+run:
+./LogServer binder_addr binder_port
+
+in host 2:
+(after logserver registed)
+run:
+./ServerFor446 binder_addr binder_port
+
+
+
+when server is runnning:
+type command in terminal
