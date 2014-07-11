@@ -12,6 +12,7 @@
 #include <map>
 #include <string.h>
 #include "Binderfor446.h"
+#include <pthread.h>
 using namespace std;
 
 static vector<client_info*> server_info;
@@ -19,18 +20,19 @@ static vector<room_location*> room_list;
 static map<int, client_info*> unspec_request;   // key is the file handler, value is the info
 static client_info* login_server;
 
+/* checked */
 void register_login_server(int fd) {
         /* Get the server information */
     char host_name[256];
     memset(host_name, 0, 256);
     int nbytes = recv(fd, host_name, 256 ,0);
-    string str(host_name);
+
     if (nbytes <= 0) {
         cerr << "FATAL ERROR: can not log the login server" << endl;
         return;
     }
-    unsigned int port = 0;
-    nbytes = recv(fd, &port, sizeof(unsigned int), 0);
+    unsigned short port = 0;
+    nbytes = recv(fd, &port, sizeof(unsigned short), 0);
     port = ntohs(port);
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log the login server" << endl;
@@ -46,11 +48,11 @@ void register_login_server(int fd) {
     delete (it->second);
     unspec_request.erase(it);
 
-    string host_name1(host_name);
-    cout << "the log in server is " << host_name1 << " " << port << endl;
+    cout << "the log in server is " << host_name << " " << port << endl;
 }
 
 /* Ask login server for checking the user's account */
+/* checked */
 int check_info (int fd) {
     if (login_server == NULL) {
         map<int, client_info*>::iterator it = unspec_request.find(fd);
@@ -61,37 +63,37 @@ int check_info (int fd) {
         unspec_request.erase(it);
         return 3;
     }
-    int size;
-    int nbytes = recv(fd, &size,4,0);    
-    size = ntohl(size);
-    char user_name[size];
-    memset(user_name, 0, size);
-    nbytes = recv(fd, user_name, size ,0);
+    int size_username;
+    int nbytes = recv(fd, &size_username, sizeof(int),0);    
+    size_username = ntohl(size_username);
+    char user_name[size_username];
+    memset(user_name, 0, size_username);
+    nbytes = recv(fd, user_name, size_username ,0);
     if (nbytes <= 0) {
         cout << "FATAL ERROR: can not log a user" << endl;
         return 1;
     }
-    int size1;    
-    nbytes = recv(fd, &size1, sizeof(int) ,0);
-    size1 = ntohl(size1);
+    int size_password;    
+    nbytes = recv(fd, &size_password, sizeof(int) ,0);
+    size_password = ntohl(size_password);
 
-    char password[size1];
-    memset(password, 0, size1);
+    char password[size_password];
+    memset(password, 0, size_password);
         cout << "i am here" << endl;
 
-    nbytes = recv(fd, password, size1, 0);
+    nbytes = recv(fd, password, size_password, 0);
     if (nbytes <=0) {
         cout << "FATAL ERROR: can not log a user" << endl;
         return 1;
     }
-    int size_n = htonl(size);
-    int size1_n= htonl(size1);
+    int size_username_n = htonl(size_username);
+    int size_password_n = htonl(size_password);
     char check_type[7] = {'S','I','G','N','I','N','\0'};
     send(login_server->fd, check_type, 7, 0);
-    send(login_server->fd, &size_n, 4, 0);
-    send(login_server->fd, user_name, size, 0);
-    send(login_server->fd, &size1_n, 4, 0);
-    send(login_server->fd, password, size1, 0);
+    send(login_server->fd, &size_username_n, sizeof(int), 0);
+    send(login_server->fd, user_name, size_username, 0);
+    send(login_server->fd, &size_password_n, sizeof(int), 0);
+    send(login_server->fd, password, size_password, 0);
     char check_result[8];
     memset(check_result, 0, 8);
     nbytes = recv(login_server->fd, check_result, 8, 0);
@@ -108,6 +110,7 @@ int check_info (int fd) {
     }
 }
 
+/* checked */
 int register_info(int fd) {
     if (login_server == NULL) {
         map<int, client_info*>::iterator it = unspec_request.find(fd);
@@ -118,41 +121,41 @@ int register_info(int fd) {
         unspec_request.erase(it);
         return 3;
     }
-    int size;
-    int nbytes = recv(fd, &size,4,0);    
-    size = ntohl(size);
-    char user_name[size];
-    memset(user_name, 0, size);
-    nbytes = recv(fd, user_name, size ,0);
+    int size_username;
+    int nbytes = recv(fd, &size_username, sizeof(int),0);    
+    size_username = ntohl(size_username);
+    char user_name[size_username];
+    memset(user_name, 0, size_username);
+    nbytes = recv(fd, user_name, size_username ,0);
     if (nbytes <= 0) {
         cout << "FATAL ERROR: can not log a user" << endl;
         return 1;
     }
-    int size1;    
-    nbytes = recv(fd, &size1, sizeof(int) ,0);
-    size1 = ntohl(size1);
+    int size_password;    
+    nbytes = recv(fd, &size_password, sizeof(int) ,0);
+    size_password = ntohl(size_password);
 
-    char password[size1];
-    memset(password, 0, size1);
+    char password[size_password];
+    memset(password, 0, size_password);
         cout << "i am here" << endl;
 
-    nbytes = recv(fd, password, size1, 0);
+    nbytes = recv(fd, password, size_password, 0);
     if (nbytes <=0) {
         cout << "FATAL ERROR: can not log a user" << endl;
         return 1;
     }
-    int size_n = htonl(size);
-    int size1_n= htonl(size1);
-
+    int size_username_n = htonl(size_username);
+    int size_password_n = htonl(size_password);
     char check_type[7] = {'S','I','G','N','U','P','\0'};
     send(login_server->fd, check_type, 7, 0);
-    send(login_server->fd, &size_n, 4, 0);
-    send(login_server->fd, user_name, size, 0);
-    send(login_server->fd, &size1_n, 4, 0);
-    send(login_server->fd, password, size1, 0);
+    send(login_server->fd, &size_username_n, sizeof(int), 0);
+    send(login_server->fd, user_name, size_username, 0);
+    send(login_server->fd, &size_password_n, sizeof(int), 0);
+    send(login_server->fd, password, size_password, 0);
     char check_result[8];
     memset(check_result, 0, 8);
     nbytes = recv(login_server->fd, check_result, 8, 0);
+    cout<<"             check_result:   "<<check_result<<endl;
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a user" << endl;
         return 1;
@@ -166,6 +169,7 @@ int register_info(int fd) {
 }
 
 /* The first time we receive a message from a server */
+/* checked */
 void log_server(int fd) {
     if (login_server == NULL) {
         close(fd);
@@ -183,7 +187,7 @@ void log_server(int fd) {
     memset(host_name, 0, 256);
     int nbytes = recv(fd, host_name, 256 ,0);
     string str(host_name);
-        cout << "the log in server is " << host_name << " lllll " << nbytes << endl;
+        cout << "the log in server is " << host_name << endl;
 
     if (nbytes <= 0) {
         cerr << "FATAL ERROR: can not log a server" << endl;
@@ -197,7 +201,7 @@ void log_server(int fd) {
         return;
     }
 
-    send(fd, login_server->host_name.c_str(), login_server->host_name.length()+1, 0);
+    send(fd, login_server->host_name.c_str(), login_server->host_name.length(), 0);
     unsigned short tmp_port = htons(login_server->port);
     send(fd, &(tmp_port), sizeof(unsigned short), 0);
 
@@ -232,50 +236,68 @@ client_info* search_server(int server_id) {
 }
 
 /* Allocate a server to the client */
-int forward_request(int fd) {
-
+void* forward_request(void* new_fd) {
+    int* fd_addr = (int*) new_fd;
+    int fd = *fd_addr;
     /* Send out all room's info */
     for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); it++) {
-        char* room_num = new char[(*it)->room_number.size()+1];
-        room_num[(*it)->room_number.size()] = 0;
-        memcpy(room_num, (*it)->room_number.c_str(), (*it)->room_number.size()+1);
-        int command = 0;
-        send(fd, &command, 4, 0);
-        send(fd, &((*it)->building), sizeof(int), 0);
-        send(fd, room_num, (*it)->room_number.size()+1, 0);
+        char room_num[5];
+        memcpy(room_num, (*it)->room_number,5);
+        room_num[4] = '\n';
+        char command[2] = {'0', '\n'};
+        send(fd, command, 2, 0);
+        char build_buffer[3];
+        itoa((*it)->building, build_buffer, 2);
+        build_buffer[2] = '\n';
+        //int building_network = htonl((*it)->building);
+        //char buffer = itoa(building_network,buffer, 4);
+        send(fd, build_buffer, 3, 0);
+        //send(fd, room_num, 5, 0);
+        char room1[2] = {room_num[0], '\n'};
+        send(fd, room1, 2, 0);
+        room1[0] = room_num[1];
+        send(fd, room1, 2, 0);
+        room1[0] = room_num[2];
+        send(fd, room1, 2, 0);
+        room1[0] = room_num[3];
+        send(fd, room1, 2, 0);
+        cout << "Send room " << (*it)->room_number << " " << building_network<< endl;
     }
-    int command = 1;
-    send(fd, &command, 4, 0);
-
-    /* Get the room information */
-    char room_num[256];
-    int nbytes = recv(fd, room_num, 256 ,0);
+    char command[2] = {'1', '\n'};
+    send(fd, command, 2, 0);
+    cout << "we are here" << endl;
+    char room_num[4];
+    int nbytes = recv(fd, room_num, 4,0);
     if (nbytes <= 0) {
-        return -1;
+        return NULL;
     }
     int building = 0;
     nbytes = recv(fd, &building, sizeof(int), 0);
     if (nbytes <=0) {
-        return -1;
+        close(fd);
+        return NULL;
     }
     
     string temp_room_num(room_num);
-    int charing_server = search_room(temp_room_num, (Building) building);
+    int charing_server = search_room(temp_room_num, (Building) ntohl(building));
     if (charing_server == 0) {
         cerr << "The room does not exist" << endl;
-        return -1;
+        close(fd);
+        return NULL;
     }
 
     /* Allocation of a server */
     client_info* server = search_server(charing_server);
     if (server == NULL) {
         cerr << "The room does not exist" << endl;
-        return -1;
+        close(fd);
+        return NULL;
     }
-    send(fd, server->host_name.c_str(), server->host_name.length()+1, 0);
+    send(fd, server->host_name.c_str(), server->host_name.length(), 0);
     unsigned short tmp_port = htons(server->port);
     send(fd, &(tmp_port), sizeof(unsigned short), 0);
-    return 0;
+    close(fd);
+    return NULL;
 }
 
 /* Get the server with the minimum workload */
@@ -290,12 +312,14 @@ client_info* min_load_server() {
     }
     return min_server;
 }
+
 /* Add a room */
 int add_room(int fd) {
     static int room_id = 1;
-    char room_num[256];
-    memset(room_num, 0, 256);
-    int nbytes = recv(fd, room_num, 256 ,0);
+    char room_num[5];
+    memset(room_num, 0, 4);
+    int nbytes = recv(fd, room_num, 4 ,0);
+    room_num[4] = '\0';
     if (nbytes <= 0) {
         return -1;
     }
@@ -304,7 +328,9 @@ int add_room(int fd) {
     if (nbytes <=0) {
         return -1;
     }
-    room_location* new_room = new room_location(room_num, (Building) building);
+    room_location* new_room = new room_location(room_num, (Building) ntohl(building));
+        cout << ntohl(building) << endl;
+
     new_room->room_ID = room_id;
     room_id++;
     /* Find the minimum workload server */
@@ -316,7 +342,7 @@ int add_room(int fd) {
         int min_server_fd = min_server->fd;
         char command = 'A';
         send(min_server_fd, &command, 1, 0);
-        send(min_server_fd, room_num, 256, 0);
+        send(min_server_fd, room_num, 4, 0);
         send(min_server_fd, &building, sizeof(int), 0);
     }
     room_list.push_back(new_room);
@@ -343,18 +369,17 @@ void terminate(int fd) {
     for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); it++) {
         if ((*it)->charing_server_ID == server_id) {
             client_info* min_server=min_load_server();
-            char* room_num = new char[(*it)->room_number.size()+1];
-            room_num[(*it)->room_number.size()] = 0;
-            memcpy(room_num, (*it)->room_number.c_str(), (*it)->room_number.size()+1);
+            char room_num[4];
+            memcpy(room_num, (*it)->room_number.c_str(), 4);
             if (min_server!=NULL) {
                 min_server->room_in_charge++;
                 (*it)->charing_server_ID = min_server->ID;
                 int min_server_fd = min_server->fd;
                 char command = 'A';
                 send(min_server_fd, &command, 1, 0);
-                send(min_server_fd, room_num, (*it)->room_number.size()+1, 0);
+                send(min_server_fd, room_num, 4, 0);
+                int building = htonl((*it)->building);
                 send(min_server_fd, &((*it)->building), sizeof(int), 0);
-                cout << "oaidwuhdaiuhdiwad" << endl;
             }
             else {
                 /* Erase all the rooms' information */
@@ -403,6 +428,7 @@ void shut_down() {
 int handle_msg(int fd, fd_set* server_fd, fd_set* fds) {
     char command;
     int nbytes = recv(fd, &command, 1, 0);
+    cout << command << endl;
     if (nbytes <= 0) return 0;
     if (command == 'A') {
         if (add_room(fd) == -1) {
@@ -419,7 +445,7 @@ int handle_msg(int fd, fd_set* server_fd, fd_set* fds) {
         return 1;
     }
     else {
-        cerr << "Unrecognized type of command received from server" << endl;
+        cerr << "Unrecognized type of command received from server  " << command << endl;
     }
     return 0;
 }
@@ -610,18 +636,18 @@ int main(void)
                                 int check_result = check_info(i);
                                 if (check_result == 1) {
                                     char msg[2] = {'F','\n'};
-                                    send(i, msg, sizeof(msg), 0);
+                                    send(i, msg, 2, 0);
                                     continue;
                                 }
                                 if (check_result == 3) {
-                                    char msg = 'N';
-                                    send(i, &msg, 1, 0);
+                                    char msg[2] = {'N','\n'};
+                                    send(i, &msg, 2, 0);
                                     close(i);
                                     FD_CLR(i, &fds);
                                     continue;
                                 }
                                 char msg[2] = {'S','\n'};
-                                send(i, msg, sizeof(msg), 0);
+                                send(i, msg, 2, 0);
                             }
                             else if (type.compare("SIGN_UPP") == 0) {
                                 cout << "Database Sign up" << endl;
@@ -647,12 +673,13 @@ int main(void)
                             }
 
                             /* Allocate the corresponding server to the client */
-                            forward_request(i);
+                            pthread_t t;
+                            int copy_fd = i;
+                            pthread_create(&t, NULL, &forward_request, &copy_fd);
                             map<int, client_info*>::iterator it = unspec_request.find(i);
                             client_info* temp = it->second;
                             unspec_request.erase(it);
                             delete temp;
-                            close(i);
                             FD_CLR(i, &fds);
                         }
                         else if (iden == 2) {
