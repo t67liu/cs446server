@@ -204,7 +204,7 @@ void log_server(int fd) {
         return;
     }
 
-    send(fd, login_server->host_name.c_str(), login_server->host_name.length(), 0);
+    send(fd, login_server->host_name.c_str(), 256, 0);
     unsigned short tmp_port = htons(login_server->port);
     send(fd, &(tmp_port), sizeof(unsigned short), 0);
 

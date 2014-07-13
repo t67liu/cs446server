@@ -23,7 +23,8 @@ EXEC SQL INCLUDE SQLCA;
 // sql declare section
 EXEC SQL BEGIN DECLARE SECTION;
     char user_name[16] ="NULL";     //user name
-    char room_sql[16] = "";      //user room history
+    char room_sql[16] = "";
+    char room_his[16] = "";
     char user_email[16]= "";    //email_address also used as a primary key
     char password[16]= "";      //user password
     char email[16]= "";
@@ -92,18 +93,30 @@ bool log_in(int pass_length){
 
 // change room history
 
-void room_his(int sock){
-    EXEC SQL SELECT roomhis INTO :room_sql
+void roomhiss(int sock){
+    cout<<"        room_sql:       "<<room_sql<<endl;
+    EXEC SQL SELECT curroom INTO :room_his
     FROM user
     WHERE email = :email;
     if(SQLCODE == 0){               // there is a history
-        room_sql[strlen(room_sql)] = '\n';
-        send(sock,room_sql,sizeof(room_sql),0);
-
+        send(sock,room_his,6,0);
     }
     else{
         send_msg( sock,"NO-HIS");
     }
+
+    memset(&user_name,0,sizeof(user_name));
+    for(int i = 0 ; email[i] != '\0';i++){
+        user_name[i] = email[i];
+    }
+    EXEC SQL UPDATE user
+    SET roomhis = :room_his,
+        curroom = :room_sql
+    WHERE email = :user_name;
+    cout<<"     size of user_name:  "<<sizeof(user_name)<<endl;
+    cout<<"     updata sqlcode: "<<SQLCODE<<endl;
+    EXEC SQL COMMIT;
+
 }
 
 
@@ -301,7 +314,14 @@ int main(int argc, char* argv[]){
                     }
                 }
                 else {
-                    cerr<<"server income socket, need to be handle"<<endl;          
+                        recv(i,email,10,0);
+                        cout<<"     from server!!!  email:  "<<email<<endl;
+                        recv(i,room_sql,6,0);
+                        cout<<"     from server~~~~~ room:  "<<room_sql<<endl;
+                        roomhiss(i);
+                        memset(&email,0,sizeof(email));
+                        memset(&room_sql,0,sizeof(room_sql));  
+                        memset(&room_his,0,sizeof(room_his));     
                 }
             }
         }
