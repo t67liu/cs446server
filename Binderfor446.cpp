@@ -548,14 +548,21 @@ void *handle_client(void* array1) {
         }
         else {}
         char msg = 'S';
-        send(fd, &msg,1 , 0);
+        send(fd, &msg, 1, 0);
+        int copy_fd = fd;
+        map<int, client_info*>::iterator it = unspec_request.find(fd);
+        client_info* temp = it->second;
+        unspec_request.erase(it);
+        delete temp;
+        close(copy_fd);
+        FD_CLR(fd, client_fds);
+        return NULL;
     }
     else {
         cout << "ERROR type of command received from the Client " << type << endl;
         return NULL;
     }
 
-    /* Allocate the corresponding server to the client */
     int copy_fd = fd;
     send_rooms(copy_fd);
     map<int, client_info*>::iterator it = unspec_request.find(fd);
