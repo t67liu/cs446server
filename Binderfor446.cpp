@@ -13,6 +13,7 @@
 #include <string.h>
 #include "Binderfor446.h"
 #include <pthread.h>
+#include <sstream>
 using namespace std;
 
 static vector<client_info*> server_info;
@@ -33,11 +34,11 @@ void register_login_server(int fd) {
     }
     unsigned short port = 0;
     nbytes = recv(fd, &port, sizeof(unsigned short), 0);
-    port = ntohs(port);
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log the login server" << endl;
         return;
     }
+    port = ntohs(port);
 
     map<int, client_info*>::iterator it = unspec_request.find(fd);
     if (it == unspec_request.end()) {
@@ -64,14 +65,18 @@ int check_info (int fd) {
         return 3;
     }
     int size_username;
-    int nbytes = recv(fd, &size_username, sizeof(int),0);    
+    int nbytes = recv(fd, &size_username, sizeof(int),0);
+    if (nbytes <=0) {
+        cerr << "FATAL ERROR: can not log the login server" << endl;
+        return 2;
+    }   
     size_username = ntohl(size_username);
     char user_name[size_username];
     memset(user_name, 0, size_username);
     nbytes = recv(fd, user_name, size_username ,0);
     if (nbytes <= 0) {
         cout << "FATAL ERROR: can not log a user" << endl;
-        return 1;
+        return 2;
     }
     int size_password;    
     nbytes = recv(fd, &size_password, sizeof(int) ,0);
@@ -97,10 +102,9 @@ int check_info (int fd) {
     char check_result[8];
     memset(check_result, 0, 8);
     nbytes = recv(login_server->fd, check_result, 8, 0);
-    cout<<"             check_result:   "<<check_result<<endl;
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a user" << endl;
-        return 1;
+        return 3;
     }
     if (check_result[0] == 's') {
         return 0;
@@ -129,7 +133,7 @@ int register_info(int fd) {
     nbytes = recv(fd, user_name, size_username ,0);
     if (nbytes <= 0) {
         cout << "FATAL ERROR: can not log a user" << endl;
-        return 1;
+        return 2;
     }
     int size_password;    
     nbytes = recv(fd, &size_password, sizeof(int) ,0);
@@ -142,7 +146,7 @@ int register_info(int fd) {
     nbytes = recv(fd, password, size_password, 0);
     if (nbytes <=0) {
         cout << "FATAL ERROR: can not log a user" << endl;
-        return 1;
+        return 2;
     }
     int size_username_n = htonl(size_username);
     int size_password_n = htonl(size_password);
@@ -236,36 +240,35 @@ client_info* search_server(int server_id) {
 }
 
 /* Allocate a server to the client */
-void* forward_request(void* new_fd) {
-    int* fd_addr = (int*) new_fd;
-    int fd = *fd_addr;
+void send_rooms(int new_fd) {
+    int fd = new_fd;
     /* Send out all room's info */
     for (vector<room_location*>::iterator it = room_list.begin(); it != room_list.end(); it++) {
-        char room_num[5];
-        memcpy(room_num, (*it)->room_number,5);
-        room_num[4] = '\n';
-        char command[2] = {'0', '\n'};
-        send(fd, command, 2, 0);
-        char build_buffer[3];
-        itoa((*it)->building, build_buffer, 2);
-        build_buffer[2] = '\n';
-        //int building_network = htonl((*it)->building);
-        //char buffer = itoa(building_network,buffer, 4);
-        send(fd, build_buffer, 3, 0);
-        //send(fd, room_num, 5, 0);
-        char room1[2] = {room_num[0], '\n'};
-        send(fd, room1, 2, 0);
-        room1[0] = room_num[1];
-        send(fd, room1, 2, 0);
-        room1[0] = room_num[2];
-        send(fd, room1, 2, 0);
-        room1[0] = room_num[3];
-        send(fd, room1, 2, 0);
-        cout << "Send room " << (*it)->room_number << " " << building_network<< endl;
+        char room_num[4];
+        memcpy(room_num, (*it)->room_number.c_str(), 4);
+        char command = '0';
+        send(fd, &command, 1, 0);
+        int building = (*it)->building;
+        char bui[2];
+        if (building == 1) {
+            bui[0] = 'M';
+            bui[1] = 'C';
+        }
+        else if (building == 2) {
+            bui[0] = 'D';
+            bui[1] = 'C';
+        }
+        send(fd, bui, 2, 0);
+        send(fd, room_num, 4, 0);
     }
-    char command[2] = {'1', '\n'};
-    send(fd, command, 2, 0);
-    cout << "we are here" << endl;
+    char command = '1';
+    send(fd, &command, 1, 0);
+    return;
+}
+
+void* forward_request(void* fd_copy) {
+    int* fd_pointer = (int*) fd_copy;
+    int fd = *fd_pointer;
     char room_num[4];
     int nbytes = recv(fd, room_num, 4,0);
     if (nbytes <= 0) {
@@ -277,7 +280,7 @@ void* forward_request(void* new_fd) {
         close(fd);
         return NULL;
     }
-    
+    cout << "The room want to enter is " << ntohl(building) << " and " << room_num << endl;
     string temp_room_num(room_num);
     int charing_server = search_room(temp_room_num, (Building) ntohl(building));
     if (charing_server == 0) {
@@ -293,9 +296,17 @@ void* forward_request(void* new_fd) {
         close(fd);
         return NULL;
     }
+    cout << server->host_name << " " <<  htons(server->port) << endl;
     send(fd, server->host_name.c_str(), server->host_name.length(), 0);
-    unsigned short tmp_port = htons(server->port);
-    send(fd, &(tmp_port), sizeof(unsigned short), 0);
+    ostringstream ss;
+    ss << htons(server->port);
+    string tmp_port = ss.str();
+    char char_port[tmp_port.length()];
+    memcpy(char_port, tmp_port.c_str(),tmp_port.length());
+    // unsigned short tmp_port = htons(server->port);
+    int la = (int) char_port[0];
+    send(fd, char_port, tmp_port.length(), 0);
+    cout << "what i sent is " << char_port << " " << server->host_name << " " << tmp_port.length() << endl;
     close(fd);
     return NULL;
 }
@@ -329,7 +340,7 @@ int add_room(int fd) {
         return -1;
     }
     room_location* new_room = new room_location(room_num, (Building) ntohl(building));
-        cout << ntohl(building) << endl;
+    cout << "New room is " << ntohl(building) << endl;
 
     new_room->room_ID = room_id;
     room_id++;
@@ -470,6 +481,94 @@ void connection_info(struct sockaddr_in &client, int fd) {
     }
 }
 
+void *handle_client(void* array1) {
+    void** array = (void**) array1;
+    void* fd_copy = array[0];
+    void* clients = array[1];
+    void* fdss = array[2];
+    int* fd_pointer = (int*) fd_copy;
+    int fd = *fd_pointer;
+    fd_set* client_fds = (fd_set*) clients;
+    fd_set* fds =  (fd_set*) fdss;
+    // if (!FD_ISSET(fd, client_fds)) {
+    //     FD_SET(fd, client_fds);
+    // }
+    cout << "Get request from client" << endl;
+    char login_type[9];
+    memset(login_type,0,9);
+    int nbytes = recv(fd, &login_type,8,0);
+    if (nbytes <= 0) {
+        cerr << "FATAL ERROR: can not handle a client" << endl;
+        FD_CLR(fd, client_fds);
+        return NULL;
+    }
+    login_type[8] = '\0';
+    string type(login_type);
+    if (type.compare("FACEBOOK") == 0) {
+        cout << "FaceBook Login" << endl;
+    }
+    else if (type.compare("SIGN_INN") == 0) {
+        cout << "Database Login" << endl;
+        int check_result = check_info(fd);
+        if (check_result == 1) {
+            char msg = 'F';
+            send(fd, &msg, 1, 0);
+            FD_SET(fd, fds);
+            return NULL;
+        }
+        if (check_result == 3) {
+            char msg = 'N';
+            send(fd, &msg, 1, 0);
+            close(fd);
+            FD_CLR(fd, client_fds);
+            return NULL;
+        }
+        char msg = 'S';
+        send(fd, &msg, 1, 0);
+    }
+    else if (type.compare("SIGN_UPP") == 0) {
+        cout << "Database Sign up" << endl;
+        int check_result = register_info(fd);
+        if (check_result == 1) {
+            char msg = 'F';
+            send(fd, &msg, 1, 0);
+            FD_SET(fd, fds);
+            return NULL;
+        }
+        else if (check_result == 3) {
+            char msg = 'N';
+            send(fd, &msg, 1, 0);
+            close(fd);
+            FD_CLR(fd, client_fds);
+            return NULL;
+        }
+        else if (check_result == 2) {
+            close(fd);
+            FD_CLR(fd, client_fds);
+            return NULL;
+        }
+        else {}
+        char msg = 'S';
+        send(fd, &msg,1 , 0);
+    }
+    else {
+        cout << "ERROR type of command received from the Client " << type << endl;
+        return NULL;
+    }
+
+    /* Allocate the corresponding server to the client */
+    int copy_fd = fd;
+    send_rooms(copy_fd);
+    map<int, client_info*>::iterator it = unspec_request.find(fd);
+    client_info* temp = it->second;
+    unspec_request.erase(it);
+    delete temp;
+    close(copy_fd);
+    FD_CLR(fd, client_fds);
+    return NULL;
+}
+
+
 int main(void)
 {
     /* we are listening on welcome_fd*/
@@ -498,7 +597,7 @@ int main(void)
     
     /* Initialize the address information */
     Server_addr.sin_family = AF_INET;   // Internet address domain
-    Server_addr.sin_port = htons(0);    // Dynamically binding a port, it is necessary to convert this to network byte order
+    Server_addr.sin_port = htons(59787);    // Dynamically binding a port, it is necessary to convert this to network byte order
     Server_addr.sin_addr.s_addr = INADDR_ANY;   // IP address of the host
     
     // memset(Server_addr.sin_zero, '\0', sizeof Server_addr);
@@ -534,6 +633,9 @@ int main(void)
     fd_set server_fds;
     FD_ZERO(&server_fds);
     FD_SET(sockfd,&server_fds);
+    fd_set client_fds;
+    FD_ZERO(&client_fds);
+    FD_SET(sockfd,&client_fds);
     fd_set fds;
     FD_ZERO(&fds);
     FD_SET(sockfd,&fds);
@@ -589,113 +691,80 @@ int main(void)
                 /* If this is a server */
                 else if (FD_ISSET(i, &server_fds)) {
                     
-                    if (handle_msg(i, &server_fds, &fds)) return 0;
+                    if (handle_msg(i, &server_fds, &fds)) {
+                        close(sockfd);
+                        FD_ZERO(&fds);
+                        FD_ZERO(&client_fds);
+                        FD_ZERO(&server_fds);
+
+                        return 0;
+                    }
                 }
+                else if (FD_ISSET(i, &client_fds)) {
+                        pthread_t t;
+                        void* array[3];
+                        int i1 = i;
+                        array[0] = &i1;
+                        array[1] = &client_fds;
+                        array[2] = &fds;
+                        FD_CLR(i, &fds);
+                        pthread_create(&t, NULL, &handle_client, array);
+               }
 
                 /* Or this is a already connected socket */
                 else {
-
                     /* Shake hand */
                     int iden;
                     int nbytes = recv(i,&iden,4,0);
-                    iden = ntohl(iden);
-                    cout << "what i receive is " << iden << endl;
-                    /* Get nothing */
-                    if (nbytes == 0) {
-                        continue;
-                    }
-
-                    else if (nbytes < 0) {
+                    if (nbytes <= 0) {
+                        cerr << "FATAL ERROR: can not log the login server" << endl;
                         close(i);
                         FD_CLR(i, &fds);
+                        continue;
                     }
-                    else {
+                    iden = ntohl(iden);
+                    /* Get nothing */
                         /* If this is a server */
-                        if (iden == 0) {
-                            cout << "Get request from server" << endl;
+                    if (iden == 0) {
+                        cout << "Get request from server" << endl;
 
-                            /* Add this handler to the server_fds */
-                            log_server(i);
-                            FD_SET(i,&server_fds);
-                        }
+                        /* Add this handler to the server_fds */
+                        log_server(i);
+                        FD_SET(i,&server_fds);
+                    }
 
-                        /* If this is a client */
-                        else if (iden == 1) {
-                            cout << "Get request from client" << endl;
-                            char login_type[9];
-                            memset(login_type,0,9);
-                            nbytes = recv(i, &login_type,8,0);
-                            cout << nbytes << "nbytes" << endl;
-                            login_type[8] = '\0';
-                            string type(login_type);
-                            if (type.compare("FACEBOOK") == 0) {
-                                cout << "FaceBook Login" << endl;
-                            }
-                            else if (type.compare("SIGN_INN") == 0) {
-                                cout << "Database Login" << endl;
-                                int check_result = check_info(i);
-                                if (check_result == 1) {
-                                    char msg[2] = {'F','\n'};
-                                    send(i, msg, 2, 0);
-                                    continue;
-                                }
-                                if (check_result == 3) {
-                                    char msg[2] = {'N','\n'};
-                                    send(i, &msg, 2, 0);
-                                    close(i);
-                                    FD_CLR(i, &fds);
-                                    continue;
-                                }
-                                char msg[2] = {'S','\n'};
-                                send(i, msg, 2, 0);
-                            }
-                            else if (type.compare("SIGN_UPP") == 0) {
-                                cout << "Database Sign up" << endl;
-                                int check_result = register_info(i);
-                                if (check_result == 1) {
-                                    char msg[2] = {'F','\n'};
-                                    send(i, msg, sizeof(msg), 0);
-                                    continue;
-                                }
-                                if (check_result == 3) {
-                                    char msg = 'N';
-                                    send(i, &msg, 1, 0);
-                                    close(i);
-                                    FD_CLR(i, &fds);
-                                    continue;
-                                }
-                                char msg[2] = {'S','\n'};
-                                send(i, msg, sizeof(msg), 0);
-                            }
-                            else {
-                                cout << "ERROR type of command received from the Client " << type << endl;
-                                continue;
-                            }
+                    /* If this is a client */
+                    else if (iden == 1) {
+                        FD_SET(i,&client_fds);
+                    }
+                    else if (iden == 2) {
+                        register_login_server(i);
+                    }
+                    else if (iden == 3) {
+                        cout << 1111111 << endl;
+                        pthread_t t;
+                        int i1 = i;
+                        FD_CLR(i, &fds);
+                        pthread_create(&t, NULL, &forward_request, &i1);
+                        map<int, client_info*>::iterator it = unspec_request.find(i);
+                        client_info* temp = it->second;
+                        unspec_request.erase(it);
+                        delete temp;
+                    }
+                    /* Other type of messages */
+                    else {
+                        cout << iden << endl;
+                        /* Someone might try to mimic servers  */
+                        cerr << "Wrong type of message from clients" << endl;
 
-                            /* Allocate the corresponding server to the client */
-                            pthread_t t;
-                            int copy_fd = i;
-                            pthread_create(&t, NULL, &forward_request, &copy_fd);
-                            map<int, client_info*>::iterator it = unspec_request.find(i);
-                            client_info* temp = it->second;
-                            unspec_request.erase(it);
-                            delete temp;
-                            FD_CLR(i, &fds);
-                        }
-                        else if (iden == 2) {
-                            register_login_server(i);
-                        }
-                        /* Other type of messages */
-                        else {
-                            cout << iden << endl;
-                            /* Someone might try to mimic servers  */
-                            cerr << "Wrong type of message from clients" << endl;
-
-                        }
                     }
                 }
             }
         }
-    }     
+    }
+    close(sockfd);
+    FD_ZERO(&fds);
+    FD_ZERO(&client_fds);
+    FD_ZERO(&server_fds);     
     return 0;
 }

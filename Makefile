@@ -1,6 +1,6 @@
 all:
-	g++ Binderfor446.cpp -o binder 
-	./compile
-	./compile2
+	g++ Binderfor446.cpp -lpthread -o binder 
+	$$ ./compile
+	$$ ./compile2
 clean: 
 	rm binder

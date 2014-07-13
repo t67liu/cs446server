@@ -20,10 +20,10 @@ typedef struct client_info {
     int ID;
     int fd;
     string host_name;
-    unsigned int port;
+    unsigned short port;
     unsigned int num_room;
     unsigned int room_in_charge;
-    client_info(char* IP, int temp_fd, int temp_port) {
+    client_info(char* IP, int temp_fd, unsigned short temp_port) {
     	string temp(IP);
     	this->host_name = temp;
         ID = 0;
