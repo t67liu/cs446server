@@ -84,8 +84,6 @@ int check_info (int fd) {
 
     char password[size_password];
     memset(password, 0, size_password);
-        cout << "i am here" << endl;
-
     nbytes = recv(fd, password, size_password, 0);
     if (nbytes <=0) {
         cout << "FATAL ERROR: can not log a user" << endl;
@@ -102,6 +100,7 @@ int check_info (int fd) {
     char check_result[8];
     memset(check_result, 0, 8);
     nbytes = recv(login_server->fd, check_result, 8, 0);
+    cout << "The client successfully log in " << check_result << endl;
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a user" << endl;
         return 3;
@@ -141,7 +140,6 @@ int register_info(int fd) {
 
     char password[size_password];
     memset(password, 0, size_password);
-        cout << "i am here" << endl;
 
     nbytes = recv(fd, password, size_password, 0);
     if (nbytes <=0) {
@@ -199,6 +197,7 @@ void log_server(int fd) {
     }
     unsigned short port = 0;
     nbytes = recv(fd, &port, sizeof(unsigned short), 0);
+    cout << ntohs(port) << " ndaiuwdwund " << host_name << endl;
     port = ntohs(port);
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a server" << endl;
@@ -299,7 +298,7 @@ void* forward_request(void* fd_copy) {
     cout << server->host_name << " " <<  htons(server->port) << endl;
     send(fd, server->host_name.c_str(), server->host_name.length(), 0);
     ostringstream ss;
-    ss << htons(server->port);
+    ss << server->port;
     string tmp_port = ss.str();
     char char_port[tmp_port.length()];
     memcpy(char_port, tmp_port.c_str(),tmp_port.length());
@@ -723,6 +722,7 @@ int main(void)
                         continue;
                     }
                     iden = ntohl(iden);
+                    cout << "The iden is " << iden << endl;
                     /* Get nothing */
                         /* If this is a server */
                     if (iden == 0) {
