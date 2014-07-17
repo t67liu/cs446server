@@ -197,7 +197,6 @@ void log_server(int fd) {
     }
     unsigned short port = 0;
     nbytes = recv(fd, &port, sizeof(unsigned short), 0);
-    cout << ntohs(port) << " ndaiuwdwund " << host_name << endl;
     port = ntohs(port);
     if (nbytes <=0) {
         cerr << "FATAL ERROR: can not log a server" << endl;
@@ -266,6 +265,7 @@ void send_rooms(int new_fd) {
 }
 
 void* forward_request(void* fd_copy) {
+    cout << "I am in forward_request" << endl;
     int* fd_pointer = (int*) fd_copy;
     int fd = *fd_pointer;
     char room_num[4];
@@ -339,7 +339,6 @@ int add_room(int fd) {
         return -1;
     }
     room_location* new_room = new room_location(room_num, (Building) ntohl(building));
-    cout << "New room is " << ntohl(building) << endl;
 
     new_room->room_ID = room_id;
     room_id++;
@@ -438,7 +437,6 @@ void shut_down() {
 int handle_msg(int fd, fd_set* server_fd, fd_set* fds) {
     char command;
     int nbytes = recv(fd, &command, 1, 0);
-    cout << command << endl;
     if (nbytes <= 0) return 0;
     if (command == 'A') {
         if (add_room(fd) == -1) {
@@ -481,6 +479,7 @@ void connection_info(struct sockaddr_in &client, int fd) {
 }
 
 void *handle_client(void* array1) {
+    cout << "I am in handle client" << endl;
     void** array = (void**) array1;
     void* fd_copy = array[0];
     void* clients = array[1];
@@ -505,6 +504,8 @@ void *handle_client(void* array1) {
     string type(login_type);
     if (type.compare("FACEBOOK") == 0) {
         cout << "FaceBook Login" << endl;
+        char msg = 'S';
+        send(fd, &msg, 1, 0);
     }
     else if (type.compare("SIGN_INN") == 0) {
         cout << "Database Login" << endl;
@@ -512,7 +513,7 @@ void *handle_client(void* array1) {
         if (check_result == 1) {
             char msg = 'F';
             send(fd, &msg, 1, 0);
-            FD_SET(fd, fds);
+            //FD_SET(fd, fds);
             return NULL;
         }
         if (check_result == 3) {
@@ -714,6 +715,7 @@ int main(void)
                         array[1] = &client_fds;
                         array[2] = &fds;
                         FD_CLR(i, &fds);
+                        cout << "This client try to log in" << endl;
                         pthread_create(&t, NULL, &handle_client, array);
                }
 
@@ -729,26 +731,27 @@ int main(void)
                         continue;
                     }
                     iden = ntohl(iden);
-                    cout << "The iden is " << iden << endl;
                     /* Get nothing */
                         /* If this is a server */
                     if (iden == 0) {
                         cout << "Get request from server" << endl;
 
                         /* Add this handler to the server_fds */
+                        cout << "Log in this server" << endl;
                         log_server(i);
                         FD_SET(i,&server_fds);
                     }
 
                     /* If this is a client */
                     else if (iden == 1) {
+                        cout << "Log in this client" << endl;
                         FD_SET(i,&client_fds);
                     }
                     else if (iden == 2) {
                         register_login_server(i);
                     }
                     else if (iden == 3) {
-                        cout << 1111111 << endl;
+                        cout << "This client has been authorized" << endl;
                         pthread_t t;
                         int i1 = i;
                         FD_CLR(i, &fds);

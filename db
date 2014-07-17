@@ -2,8 +2,8 @@ connect to cs348
 drop table user
 create table user ( \
     email       char(16) not null, \
-    name        char(16) not null, \
-    password    char(16) not null, \
-    roomhis		char(16), \
-    curroom		char(16), \
+    name        char(16), \
+    password    char(16), \
+    roomhis	char(16), \
+    curroom	char(16), \
     primary key (email) )

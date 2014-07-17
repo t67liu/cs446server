@@ -1,3 +1,33 @@
+static char sqla_program_id[292] = 
+{
+ 172,0,65,69,65,80,65,73,86,65,119,114,87,78,72,101,48,49,49,49,
+ 49,32,50,32,32,32,32,32,32,32,32,32,8,0,72,53,56,87,85,32,
+ 32,32,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,8,0,83,69,82,86,69,82,70,79,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0
+};
+
+#include "sqladef.h"
+
+static struct sqla_runtime_info sqla_rtinfo = 
+{{'S','Q','L','A','R','T','I','N'}, sizeof(wchar_t), 0, {' ',' ',' ',' '}};
+
+
+static const short sqlIsLiteral   = SQL_IS_LITERAL;
+static const short sqlIsInputHvar = SQL_IS_INPUT_HVAR;
+
+
+#line 1 "ServerFor446.sqc"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -18,10 +48,27 @@
 
 using namespace std;
 
+
+/*
 EXEC SQL INCLUDE SQLCA;
+*/
+
+/* SQL Communication Area - SQLCA - structures and constants */
+#include "sqlca.h"
+struct sqlca sqlca;
+
+
+#line 21 "ServerFor446.sqc"
+
 
 // sql declare section
+
+/*
 EXEC SQL BEGIN DECLARE SECTION;
+*/
+
+#line 24 "ServerFor446.sqc"
+
     char user_name[10];     //user name
     char room_sql[10];      //user room history
     char user_email[30];    //email_address also used as a primary key
@@ -29,7 +76,13 @@ EXEC SQL BEGIN DECLARE SECTION;
     char email[30];
     char real_pass[20];
     char db[6] = "cs348";
+
+/*
 EXEC SQL END DECLARE SECTION;
+*/
+
+#line 32 "ServerFor446.sqc"
+
 //end of declare section
 
 
@@ -77,18 +130,144 @@ void dup_data(){
         user_name[i] = email[i];
     }
 
-    EXEC SQL SELECT email INTO :user_email
+    
+/*
+EXEC SQL SELECT email INTO :user_email
     FROM user
     WHERE email = :user_name;
+*/
+
+{
+#line 82 "ServerFor446.sqc"
+  sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+#line 82 "ServerFor446.sqc"
+  sqlaaloc(2,1,1,0L);
+    {
+      struct sqla_setdata_list sql_setdlist[1];
+#line 82 "ServerFor446.sqc"
+      sql_setdlist[0].sqltype = 460; sql_setdlist[0].sqllen = 10;
+#line 82 "ServerFor446.sqc"
+      sql_setdlist[0].sqldata = (void*)user_name;
+#line 82 "ServerFor446.sqc"
+      sql_setdlist[0].sqlind = 0L;
+#line 82 "ServerFor446.sqc"
+      sqlasetdata(2,0,1,sql_setdlist,0L,0L);
+    }
+#line 82 "ServerFor446.sqc"
+  sqlaaloc(3,1,2,0L);
+    {
+      struct sqla_setdata_list sql_setdlist[1];
+#line 82 "ServerFor446.sqc"
+      sql_setdlist[0].sqltype = 460; sql_setdlist[0].sqllen = 30;
+#line 82 "ServerFor446.sqc"
+      sql_setdlist[0].sqldata = (void*)user_email;
+#line 82 "ServerFor446.sqc"
+      sql_setdlist[0].sqlind = 0L;
+#line 82 "ServerFor446.sqc"
+      sqlasetdata(3,0,1,sql_setdlist,0L,0L);
+    }
+#line 82 "ServerFor446.sqc"
+  sqlacall((unsigned short)24,1,2,3,0L);
+#line 82 "ServerFor446.sqc"
+  sqlastop(0L);
+}
+
+#line 82 "ServerFor446.sqc"
+
 
     if(SQLCODE != 0){
-        EXEC SQL INSERT INTO user(email) VALUES ("hao");
-        EXEC SQL COMMIT;
+        
+/*
+EXEC SQL INSERT INTO user(email) VALUES ("hao");
+*/
+
+/*
+SQL0206N  "hao" is not valid in the context where it is 
+used.  SQLSTATE=42703
+
+*/
+
+{
+#line 85 "ServerFor446.sqc"
+  sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+#line 85 "ServerFor446.sqc"
+  sqlacall((unsigned short)24,2,0,0,0L);
+#line 85 "ServerFor446.sqc"
+  sqlastop(0L);
+}
+
+#line 85 "ServerFor446.sqc"
+
+        
+/*
+EXEC SQL COMMIT;
+*/
+
+{
+#line 86 "ServerFor446.sqc"
+  sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+#line 86 "ServerFor446.sqc"
+  sqlacall((unsigned short)21,0,0,0,0L);
+#line 86 "ServerFor446.sqc"
+  sqlastop(0L);
+}
+
+#line 86 "ServerFor446.sqc"
+
     }
-    EXEC SQL UPDATE user
+    
+/*
+EXEC SQL UPDATE user
     SET curroom = :room_sql
     WHERE email = :user_name;
-    EXEC SQL COMMIT;
+*/
+
+{
+#line 90 "ServerFor446.sqc"
+  sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+#line 90 "ServerFor446.sqc"
+  sqlaaloc(2,2,3,0L);
+    {
+      struct sqla_setdata_list sql_setdlist[2];
+#line 90 "ServerFor446.sqc"
+      sql_setdlist[0].sqltype = 460; sql_setdlist[0].sqllen = 10;
+#line 90 "ServerFor446.sqc"
+      sql_setdlist[0].sqldata = (void*)room_sql;
+#line 90 "ServerFor446.sqc"
+      sql_setdlist[0].sqlind = 0L;
+#line 90 "ServerFor446.sqc"
+      sql_setdlist[1].sqltype = 460; sql_setdlist[1].sqllen = 10;
+#line 90 "ServerFor446.sqc"
+      sql_setdlist[1].sqldata = (void*)user_name;
+#line 90 "ServerFor446.sqc"
+      sql_setdlist[1].sqlind = 0L;
+#line 90 "ServerFor446.sqc"
+      sqlasetdata(2,0,2,sql_setdlist,0L,0L);
+    }
+#line 90 "ServerFor446.sqc"
+  sqlacall((unsigned short)24,3,2,0,0L);
+#line 90 "ServerFor446.sqc"
+  sqlastop(0L);
+}
+
+#line 90 "ServerFor446.sqc"
+
+    
+/*
+EXEC SQL COMMIT;
+*/
+
+{
+#line 91 "ServerFor446.sqc"
+  sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+#line 91 "ServerFor446.sqc"
+  sqlacall((unsigned short)21,0,0,0,0L);
+#line 91 "ServerFor446.sqc"
+  sqlastop(0L);
+}
+
+#line 91 "ServerFor446.sqc"
+
 
 }
 
@@ -270,7 +449,35 @@ void error(const char *msg)
 }
 
 int main(int argc, char* argv[]){
-    EXEC SQL CONNECT TO :db;
+    
+/*
+EXEC SQL CONNECT TO :db;
+*/
+
+{
+#line 273 "ServerFor446.sqc"
+  sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+#line 273 "ServerFor446.sqc"
+  sqlaaloc(2,1,4,0L);
+    {
+      struct sqla_setdata_list sql_setdlist[1];
+#line 273 "ServerFor446.sqc"
+      sql_setdlist[0].sqltype = 460; sql_setdlist[0].sqllen = 6;
+#line 273 "ServerFor446.sqc"
+      sql_setdlist[0].sqldata = (void*)db;
+#line 273 "ServerFor446.sqc"
+      sql_setdlist[0].sqlind = 0L;
+#line 273 "ServerFor446.sqc"
+      sqlasetdata(2,0,1,sql_setdlist,0L,0L);
+    }
+#line 273 "ServerFor446.sqc"
+  sqlacall((unsigned short)29,4,2,0,0L);
+#line 273 "ServerFor446.sqc"
+  sqlastop(0L);
+}
+
+#line 273 "ServerFor446.sqc"
+
 
     socket_room_info dummy;
     dummy.id = -1;
@@ -396,8 +603,38 @@ int main(int argc, char* argv[]){
         sleep(1);
     }
 
-    EXEC SQL COMMIT;
-    EXEC SQL CONNECT RESET;
+    
+/*
+EXEC SQL COMMIT;
+*/
+
+{
+#line 399 "ServerFor446.sqc"
+  sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+#line 399 "ServerFor446.sqc"
+  sqlacall((unsigned short)21,0,0,0,0L);
+#line 399 "ServerFor446.sqc"
+  sqlastop(0L);
+}
+
+#line 399 "ServerFor446.sqc"
+
+    
+/*
+EXEC SQL CONNECT RESET;
+*/
+
+{
+#line 400 "ServerFor446.sqc"
+  sqlastrt(sqla_program_id, &sqla_rtinfo, &sqlca);
+#line 400 "ServerFor446.sqc"
+  sqlacall((unsigned short)29,3,0,0,0L);
+#line 400 "ServerFor446.sqc"
+  sqlastop(0L);
+}
+
+#line 400 "ServerFor446.sqc"
+
     return 0;
  	
   }
